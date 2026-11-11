@@ -1,0 +1,21 @@
+import { register, connect } from './client.js';
+const base = 'http://localhost:3999';
+const tok = await register(base, process.argv[4] || ('test_' + (process.argv[2] || 'comp5')));
+const c = await connect(base, tok);
+console.log('auth:', c.last.authed?.name);
+c.send({ t: 'queue', mode: process.argv[2] || 'comp5' });
+const start = Date.now();
+let kills = 0, rounds = 0;
+c.on.s = (m) => { for (const e of m.ev) { if (e.e === 'kill') kills++; if (e.e === 'round') { rounds++; console.log('round won by', e.w, e.r); } } };
+const iv = setInterval(() => { if (c.last.welcome) c.send({ t: 'i', s: ++c.seq, k: 0, y: 0, p: 0, w: 1, rt: c.last.s?.st ?? 0 }); }, 33);
+setTimeout(() => {
+  clearInterval(iv);
+  const s = c.last.s;
+  console.log('welcome:', c.last.welcome?.room);
+  console.log('players in snap:', s?.ps.length, 'mode state:', JSON.stringify(s?.g));
+  console.log('me:', JSON.stringify(s?.me));
+  console.log('kills seen:', kills, 'rounds:', rounds, 'roster:', c.last.roster?.list.map(p => `${p.name}[${p.team}] ${p.k}/${p.d}`).join(', '));
+  const end = c.msgs.find(m => m.t === 'end'); if (end) console.log('END:', JSON.stringify(end.result), JSON.stringify(end.summary));
+  console.log('other msgs:', c.msgs.filter(m=>!['roster','s'].includes(m.t)).map(m=>m.t+(m.text?':'+m.text:'')).slice(0,15).join(' | '));
+  process.exit(0);
+}, Number(process.argv[3] || 25000));

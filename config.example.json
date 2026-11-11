@@ -1,0 +1,9 @@
+{
+  "server": { "name": "KANTFIRE EU #1", "region": "EU", "maxRooms": 40 },
+  "matchmaking": { "waitBeforeBots": 12, "fillWithBots": true, "botDifficulty": 0.55 },
+  "comp5": { "freezeTime": 10, "buyTime": 30, "roundTime": 105, "bombTimer": 40, "maxRounds": 24, "winRounds": 13, "overtime": true, "startMoney": 800 },
+  "comp2": { "roundTime": 90, "maxRounds": 16, "winRounds": 9 },
+  "gungame": { "timeLimit": 600, "ladder": ["viper", "hammer", "mk5", "rift", "breacher", "falke", "kr47", "saber", "aurus", "sparrow", "longbow", "juggernaut", "thunder", "klinge"] },
+  "zombie": { "infectDelay": 15, "roundTime": 180, "rounds": 3 },
+  "sniper": { "teams": false, "timeLimit": 480, "scoreLimit": 3000, "killPoints": 100, "headshotBonus": 50, "oneShot": false, "defaultWeapon": "sparrow" }
+}

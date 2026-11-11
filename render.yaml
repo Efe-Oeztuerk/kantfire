@@ -1,0 +1,20 @@
+# Render.com Blueprint: ein Web-Service mit dauerhafter Festplatte für Accounts/Fortschritt.
+services:
+  - type: web
+    name: kantfire
+    runtime: node
+    plan: starter            # dauerhafte Disk erfordert einen bezahlten Plan; "free" schläft ein und verliert Daten
+    buildCommand: npm ci --omit=dev
+    startCommand: node server/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: DATA_DIR
+        value: /var/data
+      - key: LOG_DIR
+        value: /var/data/logs
+      - key: REGION
+        value: EU
+    disk:
+      name: kantfire-data
+      mountPath: /var/data
+      sizeGB: 1
