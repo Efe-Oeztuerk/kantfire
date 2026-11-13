@@ -27,6 +27,7 @@ function build(def) {
   const spawns = { T: [], C: [], P: [] };
   const zones = [];
   const buy = {};
+  const raw = [];
   const fill = (x0, z0, x1, z1, ch) => {
     for (let z = Math.min(z0, z1); z <= Math.max(z0, z1); z++)
       for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++)
@@ -41,9 +42,11 @@ function build(def) {
     },
     site: (name, x0, z0, x1, z1) => zones.push({ name, x0, z0, x1, z1 }),
     buyZone: (team, x0, z0, x1, z1) => { buy[team] = { x0, z0, x1, z1 }; },
+    // freie 3D-Box in Weltmetern (für Häuser mit Stockwerken, Autos, Brunnen …)
+    box: (x0, y0, z0, x1, y1, z1, m) => raw.push({ min: [Math.min(x0, x1), Math.min(y0, y1), Math.min(z0, z1)], max: [Math.max(x0, x1), Math.max(y0, y1), Math.max(z0, z1)], m, raw: true }),
   };
   def.draw(api);
-  return { grid: g, spawns, zones, buy };
+  return { grid: g, spawns, zones, buy, raw };
 }
 
 function cellToWorld(map, cx, cz) {
@@ -82,7 +85,7 @@ function mergeRects(grid, test) {
 
 export function compileMap(def) {
   const map = { id: def.id, name: def.name, desc: def.desc, w: def.w, h: def.h, theme: def.theme, killFloor: def.killFloor ?? false };
-  const { grid, spawns, zones, buy } = build(def);
+  const { grid, spawns, zones, buy, raw } = build(def);
   map.grid = grid;
   const boxes = [];
   // Boden unter allem, was keine Leere ist
@@ -95,7 +98,9 @@ export function compileMap(def) {
     const wr = rectToWorld(map, r);
     boxes.push({ min: [wr.min[0], 0, wr.min[1]], max: [wr.max[0], s.h, wr.max[1]], m: s.m, ch: r.k });
   }
+  boxes.push(...raw);
   map.boxes = boxes;
+  map.raw = raw;
   const toPts = (list) => list.map(([x, z]) => { const [wx, wz] = cellToWorld(map, x, z); return [wx, heightAt(map, x, z), wz]; });
   map.spawns = { T: toPts(spawns.T), C: toPts(spawns.C), P: toPts(spawns.P) };
   map.sites = zones.map((z) => ({ name: z.name, ...rectToWorld(map, z) }));
@@ -232,7 +237,112 @@ const SKYLINE = {
   },
 };
 
-export const MAP_DEFS = { kraftwerk: KRAFTWERK, basar: BASAR, lagerhalle: LAGERHALLE, skyline: SKYLINE };
+
+// Map 5 – Siedlung (zwei Häuser mit Erd- und Obergeschoss, Brunnen und Autos in der Mitte)
+function wall(m, axis, fixed, a, b, y0, y1, t, mat, openings = []) {
+  // Wandsegment entlang einer Achse mit Öffnungen [von, bis, unten, oben]
+  const seg = (u0, u1, v0, v1) => {
+    if (u1 - u0 < 0.01 || v1 - v0 < 0.01) return;
+    if (axis === 'x') m.box(u0, v0, fixed - t / 2, u1, v1, fixed + t / 2, mat);
+    else m.box(fixed - t / 2, v0, u0, fixed + t / 2, v1, u1, mat);
+  };
+  const ops = openings.slice().sort((p, q) => p[0] - q[0]);
+  let cur = a;
+  for (const [o0, o1, ob, ot] of ops) {
+    seg(cur, o0, y0, y1);
+    seg(o0, o1, y0, ob);
+    seg(o0, o1, ot, y1);
+    cur = o1;
+  }
+  seg(cur, b, y0, y1);
+}
+
+function house(m, x0, x1, z0, z1, front, mat) {
+  // front: Seite zur Kartenmitte ('east' oder 'west'). Erdgeschoss 0–3.2 m, Decke 3.2–3.5 m, OG 3.5–6.5 m, Dach.
+  const T = 0.3, G = 3.2, F = 3.5, R = 6.5;
+  const fx = front === 'east' ? x1 : x0, bx = front === 'east' ? x0 : x1;
+  const dir = front === 'east' ? 1 : -1;
+  const zc = (z0 + z1) / 2;
+  // Erdgeschoss
+  wall(m, 'z', fx, z0, z1, 0, G, T, mat, [[zc - 1, zc + 1, 0, 2.4], [z0 + 1.5, z0 + 3.5, 1.0, 2.2], [z1 - 3.5, z1 - 1.5, 1.0, 2.2]]);
+  wall(m, 'z', bx, z0, z1, 0, G, T, mat, [[z1 - 4, z1 - 2, 0, 2.4], [z0 + 3, z0 + 5, 1.0, 2.2]]);
+  const xa = Math.min(x0, x1), xb = Math.max(x0, x1), xm = (xa + xb) / 2;
+  wall(m, 'x', z0, xa, xb, 0, G, T, mat, [[xm + dir * 2 - 1, xm + dir * 2 + 1, 0, 2.4], [xm - dir * 2 - 1, xm - dir * 2 + 1, 1.0, 2.2]]);
+  wall(m, 'x', z1, xa, xb, 0, G, T, mat, [[xm - 1, xm + 1, 1.0, 2.2]]);
+  // Obergeschoss mit großen Fenstern zur Mitte (Sniper-Positionen)
+  wall(m, 'z', fx, z0, z1, F, R, T, mat, [[z0 + 1.5, z0 + 4.5, 4.3, 5.6], [z1 - 4.5, z1 - 1.5, 4.3, 5.6], [zc - 0.8, zc + 0.8, 4.3, 5.6]]);
+  wall(m, 'z', bx, z0, z1, F, R, T, mat, [[zc - 1, zc + 1, 4.4, 5.5]]);
+  wall(m, 'x', z0, xa, xb, F, R, T, mat, [[xm - 1.5, xm + 1.5, 4.4, 5.5]]);
+  wall(m, 'x', z1, xa, xb, F, R, T, mat, [[xm - 1.5, xm + 1.5, 4.4, 5.5]]);
+  // Treppe entlang der Nordwand (von der Rückseite zur Front), 7 Stufen à 0.5 m
+  const sz0 = z0 + T / 2, sz1 = sz0 + 1.5, step = 0.75;
+  const sx = bx + dir * T / 2;
+  for (let i = 0; i < 7; i++) {
+    const a = sx + dir * i * step, b = sx + dir * (i + 1) * step;
+    m.box(a, 0, sz0, b, (i + 1) * 0.5, sz1, 'stair');
+  }
+  const holeEnd = sx + dir * 7 * step;
+  // Decke mit Treppenloch
+  const ha = Math.min(sx, holeEnd), hb = Math.max(sx, holeEnd);
+  m.box(xa, G, sz1, xb, F, z1, 'slab');
+  if (dir > 0) m.box(hb, G, z0, xb, F, sz1, 'slab'); else m.box(xa, G, z0, ha, F, sz1, 'slab');
+  // Geländer am Treppenloch
+  m.box(ha, F, sz1, hb - dir * 0.0, F + 1.0, sz1 + 0.1, 'stair');
+  // Dach
+  m.box(xa - 0.4, R, z0 - 0.4, xb + 0.4, R + 0.3, z1 + 0.4, 'roof');
+  // Möbel als Deckung
+  m.box(fx - dir * 3, 0, zc + 3, fx - dir * 1.8, 1.0, zc + 5, 'crate');
+  m.box(bx + dir * 2, F, zc - 1, bx + dir * 3.2, F + 1.0, zc + 2, 'crate');
+}
+
+function car(m, x, z, along, mat) {
+  const L = 4.4, W = 1.9;
+  const [hx, hz] = along === 'x' ? [L / 2, W / 2] : [W / 2, L / 2];
+  m.box(x - hx, 0.25, z - hz, x + hx, 1.15, z + hz, mat);
+  const [cx, cz] = along === 'x' ? [1.2, W / 2 - 0.1] : [W / 2 - 0.1, 1.2];
+  m.box(x - cx, 1.15, z - cz, x + cx, 1.85, z + cz, 'glass');
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const wx = along === 'x' ? x + sx * 1.4 : x + sx * 0.85, wz = along === 'x' ? z + sz * 0.85 : z + sz * 1.4;
+    m.box(wx - 0.3, 0, wz - 0.3, wx + 0.3, 0.6, wz + 0.3, 'tire');
+  }
+}
+
+const SIEDLUNG = {
+  id: 'siedlung', name: 'Siedlung', desc: 'Zwei Häuser mit Obergeschoss, dazwischen Brunnen und Autos – Fensterduelle und Nahkampf.',
+  w: 30, h: 22,
+  theme: { sky: 0xa8d4f0, fog: 0xc4dff0, floor: 0x6f9a4e, wall: 0xb9b3a8, outer: 0x6b7a5a, build: 0xc9bfa8, cont: [0x3f6e4a], crate: 0x9b7444, crate2: 0x84603a, shelf: 0x50555c, plat: 0x8d939a, sun: 0xfff1d6, ground: 'grass',
+    houseA: 0x6f9fd0, houseB: 0xe0b85a, slab: 0x8a6a45, roof: 0x5a3a32, stair: 0x7a5a3a, glass: 0x9fc6e0, tire: 0x1c1c1c, carR: 0xc23b2e, carB: 0x2f5f9f, carG: 0x6a7a3a, carW: 0xe8e8e8, fountain: 0xb8b0a0, water: 0x3a8fd0, road: 0x4a4d52 },
+  draw(m) {
+    m.border('X');
+    // Straße quer durch die Mitte (nur Optik, flach)
+    m.box(-12, 0, -2.5, 12, 0.02, 2.5, 'road');
+    house(m, -24, -12, -7, 7, 'east', 'houseA');
+    house(m, 12, 24, -7, 7, 'west', 'houseB');
+    // Brunnen
+    for (const [a, b, c, d] of [[-3, -3, 3, -2.6], [-3, 2.6, 3, 3], [-3, -2.6, -2.6, 2.6], [2.6, -2.6, 3, 2.6]]) m.box(a, 0, b, c, 0.85, d, 'fountain');
+    m.box(-2.6, 0, -2.6, 2.6, 0.35, 2.6, 'water');
+    m.box(-0.6, 0, -0.6, 0.6, 2.2, 0.6, 'fountain');
+    m.box(-1.2, 2.0, -1.2, 1.2, 2.35, 1.2, 'fountain');
+    // Autos
+    car(m, -1, -11, 'x', 'carR');
+    car(m, 2, 11.5, 'x', 'carB');
+    car(m, -8, 10, 'z', 'carW');
+    car(m, 8, -10.5, 'z', 'carG');
+    // Gartenzäune und Kisten in den Höfen
+    for (const sx of [-1, 1]) {
+      m.box(sx * 24.2, 0, -16, sx * 24.5, 1.1, -9, 'crate2');
+      m.box(sx * 24.2, 0, 9, sx * 24.5, 1.1, 16, 'crate2');
+      m.box(sx * 17, 0, -15, sx * 18.2, 1.2, -13.8, 'crate');
+      m.box(sx * 17, 0, 13.8, sx * 18.2, 1.2, 15, 'crate');
+      m.box(sx * 9, 0, -17, sx * 10.2, 2.3, -15.8, 'crate2');
+      m.box(sx * 9, 0, 15.8, sx * 10.2, 2.3, 17, 'crate2');
+    }
+    m.spawn('T', 1, 3, 2, 18); m.spawn('C', 27, 3, 28, 18);
+    for (const [x, z] of [[1, 4], [2, 17], [6, 9], [8, 12], [28, 4], [27, 17], [23, 9], [21, 12], [14, 2], [15, 19], [5, 2], [24, 19], [11, 6], [18, 15]]) m.spawn('P', x, z);
+  },
+};
+
+export const MAP_DEFS = { kraftwerk: KRAFTWERK, basar: BASAR, lagerhalle: LAGERHALLE, skyline: SKYLINE, siedlung: SIEDLUNG };
 const cache = {};
 export function getMap(id) {
   if (!MAP_DEFS[id]) throw new Error('Unbekannte Map ' + id);

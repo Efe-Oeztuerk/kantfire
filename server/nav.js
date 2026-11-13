@@ -10,6 +10,16 @@ export class Nav {
       const c = map.grid[z][x];
       this.hgt.push(c === ' ' || TALL.has(c) ? null : heightAt(map, x, z));
     }
+    this.world = world;
+    this.edgeCache = new Map();
+    // Zellen, deren Mitte in einem hohen freien 3D-Objekt liegt (Auto, Brunnen, Treppe), sind nicht begehbar
+    for (const b of map.raw || []) {
+      if (b.min[1] > 0.5 || b.max[1] - b.min[1] < 1.15) continue;
+      for (let z = 0; z < this.h; z++) for (let x = 0; x < this.w; x++) {
+        const [cx, cz] = cellToWorld(map, x, z);
+        if (cx > b.min[0] && cx < b.max[0] && cz > b.min[2] && cz < b.max[2]) this.hgt[z * this.w + x] = null;
+      }
+    }
   }
   H(x, z) { return x < 0 || z < 0 || x >= this.w || z >= this.h ? null : this.hgt[z * this.w + x]; }
   walkable(x, z) { return this.H(x, z) !== null; }
@@ -19,7 +29,20 @@ export class Nav {
     const a = this.H(ax, az), b = this.H(bx, bz);
     if (a === null || b === null) return false;
     const d = b - a;
-    return d <= 1.15 && d >= -3;
+    if (!(d <= 1.15 && d >= -3)) return false;
+    if (!this.map.raw?.length) return true;
+    // dünne Wände zwischen zwei Zellen per Strahl prüfen (gecacht)
+    const key = ((az * this.w + ax) << 16) | (bz * this.w + bx);
+    let ok = this.edgeCache.get(key);
+    if (ok === undefined) {
+      const [x0, z0] = cellToWorld(this.map, ax, az), [x1, z1] = cellToWorld(this.map, bx, bz);
+      const dx = x1 - x0, dz = z1 - z0, len = Math.hypot(dx, dz);
+      const dir = [dx / len, 0, dz / len];
+      ok = true;
+      for (const y of [a + 0.7, a + 1.5]) if (this.world.raycast([x0, y, z0], dir, len).dist < len - 0.05) ok = false;
+      this.edgeCache.set(key, ok);
+    }
+    return ok;
   }
 
   path(from, to, maxIter = 4000) {

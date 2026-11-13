@@ -24,6 +24,13 @@ export const ITEMS = [
   I('finish', 'f_venom', 'Gift', 'epic', { a: 0x8cff1a, b: 0x1b240f, pattern: 'glow' }),
   I('finish', 'f_gold', 'Blattgold', 'legendary', { a: 0xf2c14e, b: 0x8a5a12, pattern: 'glow' }),
   I('finish', 'f_void', 'Leere', 'legendary', { a: 0x8e2cff, b: 0x05030a, pattern: 'glow' }),
+  I('finish', 'f_rose', 'Rosé', 'uncommon', { a: 0xf08cb4, b: 0x6a2a44 }),
+  I('finish', 'f_carbon', 'Carbon', 'rare', { a: 0x2a2c30, b: 0x111214, pattern: 'stripes' }),
+  I('finish', 'f_tiger', 'Tiger', 'rare', { a: 0xf08a1c, b: 0x1a1208, pattern: 'stripes', src: 'bp' }),
+  I('finish', 'f_ice', 'Eiskristall', 'epic', { a: 0xa8e8ff, b: 0x2a6a9a, pattern: 'camo', src: 'crate' }),
+  I('finish', 'f_toxic', 'Toxisch', 'epic', { a: 0xb4ff2a, b: 0x2a3a10, pattern: 'camo', src: 'bp' }),
+  I('finish', 'f_galaxy', 'Galaxie', 'legendary', { a: 0x5a2cff, b: 0x0a0420, pattern: 'camo', src: 'crate' }),
+  I('finish', 'f_lava', 'Lava', 'legendary', { a: 0xff4a10, b: 0x2a0800, pattern: 'glow', src: 'bp' }),
   // Outfits (Oberkörper/Beine)
   I('outfit', 'o_basic', 'Standard', 'common', { torso: 0x55606e, legs: 0x2e333b }),
   I('outfit', 'o_urban', 'Urban', 'common', { torso: 0x7a7f86, legs: 0x3b3f45 }),
@@ -49,6 +56,25 @@ export const ITEMS = [
   I('hat', 'a_helmet', 'Gefechtshelm', 'rare', { hat: 'helmet', color: 0x4e5a3d }),
   I('hat', 'a_horns', 'Hörner', 'epic', { hat: 'horns', color: 0xd9d0c0 }),
   I('hat', 'a_crown', 'Krone', 'legendary', { hat: 'crown', color: 0xf2c14e }),
+  // Hautfarben
+  I('skin', 's_pale', 'Hell', 'common', { color: 0xf6d7b8 }),
+  I('skin', 's_light', 'Pfirsich', 'common', { color: 0xf2c79b }),
+  I('skin', 's_tan', 'Gebräunt', 'common', { color: 0xd9a77a }),
+  I('skin', 's_brown', 'Braun', 'common', { color: 0xa8714a }),
+  I('skin', 's_dark', 'Dunkel', 'common', { color: 0x6e4630 }),
+  I('skin', 's_olive', 'Oliv', 'uncommon', { color: 0xb89a6a }),
+  I('skin', 's_alien', 'Alien', 'epic', { color: 0x7ad05a, src: 'bp' }),
+  I('skin', 's_ocean', 'Ozean', 'epic', { color: 0x4aa0e0, src: 'crate' }),
+  I('skin', 's_gold', 'Goldhaut', 'legendary', { color: 0xf2c14e, src: 'bp' }),
+  // Emotes
+  I('emote', 'e_wave', 'Winken', 'common', { anim: 'wave' }),
+  I('emote', 'e_salute', 'Salutieren', 'common', { anim: 'salute' }),
+  I('emote', 'e_facepalm', 'Facepalm', 'uncommon', { anim: 'facepalm' }),
+  I('emote', 'e_flex', 'Muskeln', 'rare', { anim: 'flex' }),
+  I('emote', 'e_jacks', 'Hampelmann', 'rare', { anim: 'jacks' }),
+  I('emote', 'e_dance', 'Tanzen', 'epic', { anim: 'dance', src: 'bp' }),
+  I('emote', 'e_spin', 'Pirouette', 'epic', { anim: 'spin' }),
+  I('emote', 'e_robot', 'Roboter-Tanz', 'legendary', { anim: 'robot', src: 'bp' }),
   // Handschuhe
   I('gloves', 'g_black', 'Schwarz', 'common', { color: 0x1d1f22 }),
   I('gloves', 'g_tan', 'Leder', 'common', { color: 0x8a6a45 }),
@@ -60,8 +86,10 @@ export const ITEMS = [
 
 export const ITEM_BY_ID = Object.fromEntries(ITEMS.map((i) => [i.id, i]));
 
-export const DEFAULT_OWNED = ['f_stock', 'o_basic', 'o_urban', 'h_smile', 'h_serious', 'a_none', 'a_cap', 'g_black', 'g_tan'];
-export const DEFAULT_LOADOUT = { outfit: 'o_basic', face: 'h_smile', hat: 'a_none', gloves: 'g_black', finishes: {} };
+export const DEFAULT_OWNED = ['f_stock', 'o_basic', 'o_urban', 'h_smile', 'h_serious', 'a_none', 'a_cap', 'g_black', 'g_tan', 's_pale', 's_light', 's_tan', 's_brown', 's_dark', 'e_wave'];
+export const DEFAULT_LOADOUT = { outfit: 'o_basic', face: 'h_smile', hat: 'a_none', gloves: 'g_black', skin: 's_light', emote: 'e_wave', finishes: {} };
+export const SLOT_TYPES = { outfit: 'outfit', face: 'face', hat: 'hat', gloves: 'gloves', skin: 'skin', emote: 'emote' };
+export const TYPE_NAMES = { finish: 'Waffen-Skin', outfit: 'Outfit', face: 'Gesicht', hat: 'Accessoire', gloves: 'Handschuhe', skin: 'Hautfarbe', emote: 'Emote' };
 
 // Freischaltungen durch Levelaufstieg
 export const LEVEL_UNLOCKS = {
@@ -71,3 +99,12 @@ export const LEVEL_UNLOCKS = {
 };
 
 export function shopPrice(item) { return RARITIES[item.rarity].price; }
+export const inShop = (i) => !i.src;
+export const inCrates = (i) => i.src !== 'bp';
+
+// Truhen: Gewichte je Seltenheit (in %). Werden im Menü offen angezeigt.
+export const CRATES = {
+  standard: { id: 'standard', name: 'Standard-Truhe', price: 300, color: '#ff6a2a', types: ['finish', 'outfit', 'face', 'hat', 'gloves', 'skin', 'emote'], weights: { common: 50, uncommon: 28, rare: 14, epic: 6, legendary: 2 } },
+  waffen: { id: 'waffen', name: 'Waffen-Truhe', price: 400, color: '#4b8df0', types: ['finish'], weights: { common: 40, uncommon: 30, rare: 18, epic: 9, legendary: 3 } },
+};
+export const DUPLICATE_REFUND = 0.4; // Anteil des Shop-Preises bei Duplikaten

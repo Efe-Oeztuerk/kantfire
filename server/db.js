@@ -104,8 +104,12 @@ function migrateUser(u) {
   u.modeStats ||= {};
   u.ratings ||= {};
   u.inventory ||= [...DEFAULT_OWNED];
+  for (const id of DEFAULT_OWNED) if (!u.inventory.includes(id)) u.inventory.push(id);
   u.loadout ||= structuredClone(DEFAULT_LOADOUT);
+  for (const [k, v] of Object.entries(DEFAULT_LOADOUT)) if (u.loadout[k] === undefined) u.loadout[k] = structuredClone(v);
   u.loadout.finishes ||= {};
+  u.crates ||= {};
+  if (!u.bp || u.bp.season !== 1) u.bp = { season: 1, xp: 0, claimed: [] };
   u.friends ||= [];
   u.requests ||= [];
   u.blocked ||= [];

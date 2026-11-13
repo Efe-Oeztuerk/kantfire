@@ -5,7 +5,7 @@ execSync('rm -rf /tmp/kf-test-data');
 const srv = spawn('node', ['server/index.js'], { env, stdio: 'inherit' });
 await new Promise((r) => setTimeout(r, 1500));
 const run = (args) => new Promise((res) => { const p = spawn('node', args, { stdio: 'inherit' }); p.on('exit', res); });
-for (const m of ['comp5', 'comp2', 'gungame', 'zombie', 'sniper']) { console.log(`\n=== Modus ${m}`); await run(['test/smoke.mjs', m, '15000']); }
+for (const m of ['comp5', 'comp2', 'tdm', 'gungame', 'zombie', 'sniper']) { console.log(`\n=== Modus ${m}`); await run(['test/smoke.mjs', m, '15000']); }
 console.log('\n=== Multiplayer (2 Spieler)'); await run(['test/multiplayer.mjs']);
 console.log('\n=== Freunde & Einladungen'); await run(['test/social.mjs']);
 srv.kill();

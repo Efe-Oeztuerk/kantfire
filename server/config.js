@@ -33,6 +33,11 @@ const DEFAULTS = {
     teams: false, timeLimit: 480, scoreLimit: 3000, killPoints: 100, headshotBonus: 50,
     respawnTime: 2, spawnProtect: 2, oneShot: false, defaultWeapon: 'sparrow', allowed: ['longbow', 'sparrow', 'tempest', 'lynx'],
   },
+  tdm: {
+    killLimit: 50, timeLimit: 600, respawnTime: 3, spawnProtect: 2, grenade: true,
+    primaries: ['kr47', 'saber', 'aurus', 'falke', 'mk5', 'u45', 'rift', 'vektor', 'breacher', 'lynx', 'sparrow', 'longbow', 'juggernaut'],
+    secondaries: ['viper', 'warden', 'hammer', 'thunder'], defaultPrimary: 'kr47', defaultSecondary: 'viper',
+  },
   warmup: { respawnTime: 1.5 },
 };
 

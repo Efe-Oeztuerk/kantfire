@@ -1,0 +1,37 @@
+import asyncio, json
+from playwright.async_api import async_playwright
+async def main():
+    async with async_playwright() as p:
+        b = await p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'])
+        pg = await b.new_page(viewport={'width':1280,'height':720})
+        errs = []
+        pg.on('console', lambda m: errs.append(f'{m.type}: {m.text}') if m.type == 'error' else None)
+        pg.on('pageerror', lambda e: errs.append(f'PAGEERROR: {e}'))
+        await pg.goto('http://localhost:3999/'); await pg.wait_for_timeout(600)
+        await pg.click('.tabs button[data-m=register]'); await pg.fill('.n', 'ingame_t2'); await pg.fill('.p', 'geheim123'); await pg.click('.go')
+        await pg.wait_for_timeout(1500)
+        await pg.screenshot(path='/tmp/shots/50_menu_hero.png')
+        await pg.evaluate("() => window.kf.net.send({t:'create', private:true, mode:'tdm', map:'siedlung', bots:true, diff:0.3})")
+        await pg.wait_for_timeout(3000)
+        await pg.evaluate("() => window.kf.net.send({t:'start'})")
+        await pg.wait_for_timeout(7000)
+        await pg.evaluate("() => { window.kf.game.input.locked = true; }")
+        await pg.screenshot(path='/tmp/shots/51_siedlung.png')
+        # Blick zum anderen Haus (Osten) 
+        await pg.evaluate("() => { const g = window.kf.game; g.yaw = -Math.PI/2; g.pitch = 0.05; }")
+        await pg.wait_for_timeout(800)
+        await pg.screenshot(path='/tmp/shots/52_siedlung_view.png')
+        await pg.keyboard.press('KeyF'); await pg.wait_for_timeout(1300)
+        await pg.screenshot(path='/tmp/shots/53_inspect.png')
+        await pg.keyboard.press('KeyB'); await pg.wait_for_timeout(800)
+        await pg.screenshot(path='/tmp/shots/54_loadout.png')
+        await pg.click('.pk[data-w=longbow]'); await pg.wait_for_timeout(300)
+        await pg.keyboard.press('KeyB'); await pg.wait_for_timeout(300)
+        await pg.evaluate("() => { window.kf.game.input.locked = true; }")
+        await pg.keyboard.press('KeyV'); await pg.wait_for_timeout(1200)
+        await pg.screenshot(path='/tmp/shots/55_emote.png')
+        st = await pg.evaluate("() => { const g = window.kf.game; return {map: g.map.id, mode: g.modeId, g: g.g, self: g.self && {hp:g.self.hp, al:g.self.al, w:g.self.w}, icon: !!document.querySelector('.h-wicon').src} }")
+        print('STATE', json.dumps(st)[:500])
+        print('ERRORS', len(errs)); [print(' ', e[:300]) for e in errs[:10]]
+        await b.close()
+asyncio.run(main())

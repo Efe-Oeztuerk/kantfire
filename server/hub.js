@@ -115,6 +115,7 @@ export class Hub {
       case 'pick': if (c.room?.mode.pick && c.player) c.room.mode.pick(c.player, String(m.w)); break;
       case 'chat': { const text = cleanText(m.text, 140); if (text && c.room && c.player) c.room.chatMsg(c.player, text, !!m.team); break; }
       case 'invite': this.invite(c, String(m.to)); break;
+      case 'emote': if (c.room && c.player) c.room.emote(c.player); break;
     }
   }
 
@@ -139,7 +140,7 @@ export class Hub {
       if (!alive.length) continue;
       const def = MODES[mode];
       // Laufende öffentliche Matchmaking-Räume mit freien Plätzen bevorzugen (FFA-Modi)
-      if (!def.teams || mode === 'zombie') {
+      if (!def.teams || mode === 'zombie' || mode === 'tdm') {
         for (const r of this.rooms.values()) {
           if (r.modeId !== mode || r.isPrivate || r.password || r.ended || !r.ranked && r.hostUserId) continue;
           while (alive.length && r.humans().length < r.max) { const e = alive.shift(); this.putInRoom(e.conn, r); }
@@ -221,6 +222,7 @@ function sanitizeOverrides(mode, rules) {
   const allow = {
     sniper: { teams: 'bool', oneShot: 'bool', scoreLimit: [500, 20000], timeLimit: [60, 3600] },
     gungame: { timeLimit: [60, 3600] },
+    tdm: { killLimit: [10, 200], timeLimit: [60, 3600] },
     zombie: { rounds: [1, 9], roundTime: [60, 600] },
     comp5: { maxRounds: [2, 30], winRounds: [2, 16], roundTime: [30, 300], startMoney: [0, 16000] },
     comp2: { maxRounds: [2, 30], winRounds: [2, 16], roundTime: [30, 300], startMoney: [0, 16000] },

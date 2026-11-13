@@ -172,7 +172,7 @@ export class Room {
     const w = p.activeWeapon();
     const frozen = this.mode.frozen(p) || (p.action && (inp.k & KEY.USE));
     const s = p.st;
-    simulate(s, inp, TICK_DT, this.world, { speedMult: moveMult(w, p.zoom, p.speedMult), frozen });
+    simulate(s, inp, TICK_DT, this.world, { speedMult: moveMult(w, p.zoom, p.speedMult), frozen, noSprint: p.zoom > 0 });
     if (this.map.killFloor && s.y < MOVE.killY && p.alive) this.damage(p, null, 999, 'body', 'fall', {});
     // Benutzen (Bombe, Aufheben)
     this.mode.onUse?.(p, !!(inp.k & KEY.USE), !(p.prevKeys & KEY.USE) && !!(inp.k & KEY.USE));
@@ -387,6 +387,13 @@ export class Room {
 
   toast(p, text) { p.conn?.send({ t: 'toast', text }); }
 
+  emote(p) {
+    if (!p.alive || p.zombie) return;
+    if (this.time - (p.lastEmote || -9) < 3) return;
+    p.lastEmote = this.time;
+    this.emit({ e: 'emote', id: p.id, em: p.loadout.emote || 'e_wave' });
+  }
+
   chatMsg(p, text, team) {
     const now = Date.now();
     p.chatTimes = p.chatTimes.filter((t) => now - t < 5000);
@@ -416,7 +423,7 @@ export class Room {
   }
 
   place(p, pos, yawToward) {
-    const gy = this.world.groundHeight(pos[0], pos[2], 40) ?? pos[1];
+    const gy = this.world.groundHeight(pos[0], pos[2], pos[1] + 1.5) ?? pos[1];
     Object.assign(p.st, { x: pos[0] + (Math.random() - 0.5) * 0.3, y: gy + 0.01, z: pos[2] + (Math.random() - 0.5) * 0.3, vx: 0, vy: 0, vz: 0, g: true, c: false });
     p.yaw = yawToward != null ? yawToward : Math.atan2(p.st.x, p.st.z);
     p.history.length = 0;

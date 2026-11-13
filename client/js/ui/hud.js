@@ -6,6 +6,7 @@ import { settings, keyName } from '../settings.js';
 import { renderSettings, drawCrosshair } from './settingsView.js';
 import { audio } from '../game/audio.js';
 import { api } from '../api.js';
+import { weaponIcon } from '../game/icons.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const fmtT = (s) => { s = Math.max(0, Math.ceil(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
@@ -16,7 +17,7 @@ export class Hud {
     this.el = document.getElementById('hud');
     this.el.innerHTML = `
       <div class="h-vignette"></div><div class="h-flash"></div>
-      <div class="h-scope hidden"></div>
+      <canvas class="h-scope hidden"></canvas>
       <div class="h-net"></div>
       <canvas class="h-radar" width="170" height="170"></canvas>
       <div class="h-top"></div>
@@ -31,7 +32,7 @@ export class Hud {
       <div class="h-chat"></div>
       <div class="h-money"></div>
       <div class="h-bl"><div class="h-hp"><div class="h-small">LEBEN</div><div class="h-big">100</div></div><div class="h-ar"><div class="h-small">RÜSTUNG</div><div class="h-big">0</div></div></div>
-      <div class="h-br"><div class="h-slots"></div><div class="h-small h-wname"></div><div class="h-big h-ammo"></div></div>
+      <div class="h-br"><div class="h-slots"></div><img class="h-wicon" alt=""><div class="h-small h-wname"></div><div class="h-big h-ammo"></div></div>
       <div class="h-spec hidden"></div>
       <div class="h-layer"></div>`;
     this.$ = (s) => this.el.querySelector(s);
@@ -68,8 +69,10 @@ export class Hud {
     if (settings.gameplay.showNet) net.push(`Ping ${Math.round(G.net.rtt)} ms`, `Verlust ${G.net.lossPct} %`);
     if (!G.net.connected) net.push('⚠ Verbindung unterbrochen – verbinde neu …');
     this.set('.h-net', net.join(' · '));
-    this.$('.h-scope').classList.toggle('hidden', !scoped);
-    this.$('.h-cross').classList.toggle('hidden', !!scoped || !s?.al);
+    const sc = this.$('.h-scope');
+    sc.classList.toggle('hidden', !scoped);
+    if (scoped && (sc.width !== innerWidth || sc.height !== innerHeight)) drawScope(sc);
+    this.$('.h-cross').classList.toggle('hidden', !!scoped || !s?.al || !!G.myEmote);
     if (!s) return;
     // Leben/Rüstung
     this.set('.h-hp .h-big', String(s.hp));
@@ -80,6 +83,10 @@ export class Hud {
     // Waffe/Munition
     const inst = G.currentInst(), w = G.currentWeapon();
     this.set('.h-wname', w ? w.name + (s.kit ? ' · Kit' : '') : '');
+    const finish = inst ? (G.app.profile?.loadout?.finishes?.[inst.id] || 'f_stock') : null;
+    const showIcon = w && w.cat !== 'bomb' && w.id !== 'klaue';
+    const icon = showIcon ? weaponIcon(inst.id, finish) : '';
+    if (this.cache.get('icon') !== icon) { this.cache.set('icon', icon); const im = this.$('.h-wicon'); im.src = icon || ''; im.style.display = icon ? 'block' : 'none'; }
     let ammo = '';
     if (w && !w.melee && w.cat !== 'grenade' && w.cat !== 'bomb') ammo = `${G.predictedMag()} / ${inst.res >= 900 ? '∞' : inst.res}`;
     if (s.rl > 0) ammo = 'Lädt …';
@@ -132,6 +139,8 @@ export class Hud {
         <span class="h-small">Führung: ${(gs.top || []).map(([id, l]) => `${esc(G.roster.get(id)?.name)} (${l + 1})`).join(', ')}</span>`;
     } else if (mode === 'zombie') {
       html = `<span class="h-c">🧍 ${gs.hum ?? 0}</span><span class="tm">${gs.ph === 'wait' ? 'Infektion in ' + Math.ceil(gs.te) : fmtT(gs.te)}</span><span style="color:#8fd16a">🧟 ${gs.zom ?? 0}</span><span class="h-small">Runde ${gs.r}/${gs.rounds}<br>Überlebende ${gs.w?.humans ?? 0} : ${gs.w?.zombies ?? 0} Zombies</span>`;
+    } else if (mode === 'tdm') {
+      html = `<span class="sc h-t">${gs.ts?.T ?? 0}</span><span class="tm">${gs.ph === 'countdown' ? 'Start in ' + Math.ceil(gs.te) : fmtT(gs.te)}</span><span class="sc h-c">${gs.ts?.C ?? 0}</span><span class="h-small">Team Deathmatch<br>${gs.lim} Kills gewinnen</span>`;
     } else if (mode === 'sniper') {
       const me = G.roster.get(G.me);
       const ts = gs.ts ? `<span class="sc h-t">${gs.ts.T}</span>` : '';
@@ -320,7 +329,8 @@ export class Hud {
     if (this.ended || this.escOpen) return;
     if (this.buyOpen) return this.closeBuy();
     const mode = this.g.modeId;
-    if (!['comp5', 'comp2', 'sniper'].includes(mode) || (mode !== 'sniper' && !this.g.started)) { this.sub(mode === 'sniper' || this.g.started ? 'In diesem Modus gibt es kein Kaufmenü.' : 'Kaufen ist ab Matchbeginn möglich.', 2); audio.ui('error'); return; }
+    const loadoutMode = mode === 'sniper' || mode === 'tdm';
+    if (!['comp5', 'comp2', 'sniper', 'tdm'].includes(mode) || (!loadoutMode && !this.g.started)) { this.sub(loadoutMode || this.g.started ? 'In diesem Modus gibt es kein Kaufmenü.' : 'Kaufen ist ab Matchbeginn möglich.', 2); audio.ui('error'); return; }
     this.buyOpen = true;
     this.g.input.unlock();
     this.renderBuy();
@@ -331,6 +341,19 @@ export class Hud {
     let box = this.$('.h-buy');
     if (!box) { box = document.createElement('div'); box.className = 'h-buy pe'; this.layer.append(box); }
     this.buyDrawn = performance.now();
+    if (G.modeId === 'tdm') {
+      if (box.dataset.built) return;
+      box.dataset.built = '1';
+      const fin = (id) => G.app.profile?.loadout?.finishes?.[id] || 'f_stock';
+      const card = (id) => { const w = WEAPONS[id]; return `<button class="pk lo-card" data-w="${id}"><img src="${weaponIcon(id, fin(id))}"><b>${w.name}</b><span class="muted">${w.dmg} Schaden · ${w.rpm}/min · ${w.mag} Schuss</span></button>`; };
+      box.innerHTML = `<div class="row"><h2 class="grow" style="margin:0">Loadout – Team Deathmatch</h2><button class="x">Schließen (${keyName(settings.controls.keys.buy)})</button></div>
+        <p class="muted">Gilt ab dem nächsten Respawn (während des Spawnschutzes sofort). Messer und Splittergranate sind immer dabei.</p>
+        <h4 class="muted">PRIMÄRWAFFE</h4><div class="lo-grid">${(G.cfg.primaries || []).map(card).join('')}</div>
+        <h4 class="muted">SEKUNDÄRWAFFE</h4><div class="lo-grid">${(G.cfg.secondaries || []).map(card).join('')}</div>`;
+      box.querySelectorAll('.pk').forEach((b) => (b.onclick = () => { G.net.send({ t: 'pick', w: b.dataset.w }); audio.ui('buy'); box.querySelectorAll('.pk').forEach((x) => { if (WEAPONS[x.dataset.w].slot === WEAPONS[b.dataset.w].slot) x.classList.toggle('sel', x === b); }); }));
+      box.querySelector('.x').onclick = () => this.closeBuy();
+      return;
+    }
     if (G.modeId === 'sniper') {
       if (box.dataset.built) return;
       box.dataset.built = '1';
@@ -447,7 +470,8 @@ export class Hud {
         ${mine.levelUp ? `<div class="stat"><div class="v">Level ${mine.levelUp}</div><div class="l">Levelaufstieg!</div></div>` : ''}
       </div>
       ${mine.unlocked?.length ? `<div>Freigeschaltet: ${mine.unlocked.map(esc).join(', ')}</div>` : ''}
-      ${mine.challenges?.length ? `<div>Herausforderung geschafft: ${mine.challenges.map(esc).join(', ')}</div>` : ''}` : ''}
+      ${mine.challenges?.length ? `<div>Herausforderung geschafft: ${mine.challenges.map(esc).join(', ')}</div>` : ''}
+      ${mine.bp ? `<div>🎫 Battlepass-Stufe ${mine.bp.tier}${mine.bp.rewards?.length ? ` · Neu: ${mine.bp.rewards.map(esc).join(', ')}` : ''}</div>` : ''}` : ''}
       <div class="score-here"></div>
       <button class="primary back">Zurück zum Menü</button></div>`;
     this.layer.append(box);
@@ -461,4 +485,40 @@ export class Hud {
 function weaponInfo(w) {
   if (!w.dmg) return '';
   return `Schaden ${w.dmg}${w.pellets > 1 ? '×' + w.pellets : ''} · ${w.rpm} Schuss/min · Magazin ${w.mag} · Tempo ${Math.round(w.mob * 100)}% · Kill-Belohnung $${w.reward}`;
+}
+
+// Echtes Zielfernrohr-Bild: schwarzer Rand, Linse mit Vignette, dicke Balken und feines Fadenkreuz mit Mil-Dots
+function drawScope(cv) {
+  const W = (cv.width = innerWidth), H = (cv.height = innerHeight);
+  const g = cv.getContext('2d');
+  const cx = W / 2, cy = H / 2, R = H * 0.46;
+  g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+  g.globalCompositeOperation = 'destination-out';
+  const hole = g.createRadialGradient(cx, cy, R * 0.9, cx, cy, R);
+  hole.addColorStop(0, 'rgba(0,0,0,1)'); hole.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = hole; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
+  g.globalCompositeOperation = 'source-over';
+  // Linsen-Vignette und leichter Glanz
+  const vig = g.createRadialGradient(cx, cy, R * 0.55, cx, cy, R);
+  vig.addColorStop(0, 'rgba(0,0,0,0)'); vig.addColorStop(1, 'rgba(0,0,0,0.55)');
+  g.fillStyle = vig; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
+  const shine = g.createRadialGradient(cx - R * 0.35, cy - R * 0.4, 0, cx - R * 0.35, cy - R * 0.4, R * 0.6);
+  shine.addColorStop(0, 'rgba(180,220,255,0.10)'); shine.addColorStop(1, 'rgba(180,220,255,0)');
+  g.fillStyle = shine; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
+  // dicke Balken (enden vor der Mitte)
+  g.fillStyle = '#050505';
+  const tw = Math.max(5, H * 0.011), gap = R * 0.3;
+  g.fillRect(cx - R, cy - tw / 2, R - gap, tw);
+  g.fillRect(cx + gap, cy - tw / 2, R - gap, tw);
+  g.fillRect(cx - tw / 2, cy + gap, tw, R - gap);
+  g.fillRect(cx - tw / 2, cy - R, tw, R - gap);
+  // feines Fadenkreuz
+  g.fillStyle = 'rgba(0,0,0,0.85)';
+  g.fillRect(cx - gap, cy - 0.75, gap * 2, 1.5);
+  g.fillRect(cx - 0.75, cy - gap, 1.5, gap * 2);
+  for (let i = 1; i <= 4; i++) {
+    const d = (gap / 5) * i;
+    for (const [x, y] of [[cx + d, cy], [cx - d, cy], [cx, cy + d], [cx, cy - d]]) { g.beginPath(); g.arc(x, y, 1.6, 0, Math.PI * 2); g.fill(); }
+  }
+  g.fillStyle = 'rgba(255,40,40,0.9)'; g.beginPath(); g.arc(cx, cy, 1.6, 0, Math.PI * 2); g.fill();
 }

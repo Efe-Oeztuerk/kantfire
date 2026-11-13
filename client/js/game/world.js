@@ -71,6 +71,14 @@ export function makeTexture(kind, color, size = 256) {
       g.strokeStyle = shade(color, 0.7); g.lineWidth = 2 * u; g.strokeRect(u, u, size - 2 * u, size - 2 * u);
       for (let i = 0; i < 20; i++) { g.fillStyle = shade(color, 1.2); g.fillRect(R() * size, R() * size, 2 * u, 2 * u); }
       break;
+    case 'grass':
+      speckle(size * 14, 0.3, u);
+      for (let i = 0; i < size * 2; i++) { g.fillStyle = shade(color, 0.8 + R() * 0.45); g.fillRect(R() * size, R() * size, u, 3 * u); }
+      break;
+    case 'siding':
+      for (let y = 0; y < size; y += size / 8) { g.fillStyle = shade(color, 0.92 + R() * 0.12); g.fillRect(0, y, size, size / 8 - u); g.fillStyle = shade(color, 0.7); g.fillRect(0, y + size / 8 - u, size, u); }
+      speckle(size, 0.1, u);
+      break;
     case 'facade': {
       speckle(size * 3, 0.15, u);
       for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) { g.fillStyle = R() < 0.3 ? '#f2e6a0' : '#2a3442'; g.fillRect(x * size / 4 + 5 * u, y * size / 4 + 5 * u, size / 4 - 10 * u, size / 4 - 12 * u); }
@@ -85,7 +93,7 @@ export function makeTexture(kind, color, size = 256) {
   return t;
 }
 
-const KIND = { floor: null, wall: 'brick', outer: 'concrete', build: 'block', cont: 'metal', crate: 'wood', crate2: 'wood', shelf: 'shelf', plat: 'plate' };
+const KIND = { floor: null, wall: 'brick', outer: 'concrete', build: 'block', cont: 'metal', crate: 'wood', crate2: 'wood', shelf: 'shelf', plat: 'plate', houseA: 'siding', houseB: 'siding', slab: 'wood', roof: 'roof', stair: 'wood', fountain: 'block', road: 'concrete' };
 
 // Box-Geometrie mit weltskalierten UVs (Textur wiederholt sich alle 2 m)
 function boxGeo(b, tile = 2) {
@@ -108,7 +116,8 @@ export function buildWorld(map, gfx) {
   const buckets = new Map();
   map.boxes.forEach((b, i) => {
     let key = b.m, color = th[b.m], kind = KIND[b.m];
-    if (b.m === 'floor') { kind = th.ground === 'sand' ? 'sand' : th.ground === 'roof' ? 'roof' : 'concrete'; color = th.floor; }
+    if (b.m === 'floor') { kind = th.ground === 'sand' ? 'sand' : th.ground === 'roof' ? 'roof' : th.ground === 'grass' ? 'grass' : 'concrete'; color = th.floor; }
+    if (color === undefined) color = 0x888888;
     if (b.m === 'cont') { color = th.cont[i % th.cont.length]; key = 'cont' + color; }
     if (b.m === 'build' && th.city) kind = 'facade';
     if (b.m === 'wall' && th.ground === 'sand') kind = 'block';
@@ -118,7 +127,8 @@ export function buildWorld(map, gfx) {
   for (const { kind, color, geos } of buckets.values()) {
     const geo = mergeGeometries(geos);
     geos.forEach((g) => g.dispose());
-    const mat = new THREE.MeshLambertMaterial({ map: makeTexture(kind, color, size) });
+    const mat = kind ? new THREE.MeshLambertMaterial({ map: makeTexture(kind, color, size) })
+      : new THREE.MeshLambertMaterial({ color, transparent: color === th.glass || color === th.water, opacity: color === th.glass ? 0.55 : color === th.water ? 0.8 : 1 });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.castShadow = true; mesh.receiveShadow = true;
     mesh.matrixAutoUpdate = false;

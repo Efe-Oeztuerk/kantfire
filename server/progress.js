@@ -2,6 +2,9 @@
 import * as db from './db.js';
 import { levelInfo, challengeSet, dayKey, weekKey, rankFor, RANKED_MODES } from '../shared/progression.js';
 import { LEVEL_UNLOCKS } from '../shared/cosmetics.js';
+import { REWARDS, bpTier, SEASON } from '../shared/battlepass.js';
+import { ITEM_BY_ID } from '../shared/cosmetics.js';
+import { CRATES } from '../shared/cosmetics.js';
 import { log } from './security.js';
 
 export function commitMatch(room, single, { left = false, result = null } = {}) {
@@ -48,6 +51,8 @@ export function commitMatch(room, single, { left = false, result = null } = {}) 
       if (item && !u.inventory.includes(item)) { u.inventory.push(item); unlocked.push(item); }
       u.coins += 100;
     }
+    // Battlepass
+    const bpRewards = grantBattlepass(u, xp);
     // Rangpunkte
     let rd = null;
     if (ranked && deltas.has(p.id)) {
@@ -63,7 +68,7 @@ export function commitMatch(room, single, { left = false, result = null } = {}) 
     u.history.length = Math.min(u.history.length, 30);
     db.markDirty();
     summary.push({
-      id: p.id, name: p.name, won, draw, xp, coins, levelUp: after > before ? after : null, unlocked, challenges: done.map((c) => c.text),
+      id: p.id, name: p.name, won, draw, xp, coins, levelUp: after > before ? after : null, unlocked, challenges: done.map((c) => c.text), bp: { tier: bpTier(u.bp.xp), rewards: bpRewards },
       rating: ranked ? { delta: Math.round(rd ?? 0), now: u.ratings[room.modeId].r, rank: rankFor(u.ratings[room.modeId].r, u.ratings[room.modeId].games).name } : null,
     });
     // Auffällige Kopfschussquote protokollieren
@@ -134,4 +139,21 @@ function progressChallenges(u, add) {
     }
   }
   return completed;
+}
+
+// Battlepass-Fortschritt und automatische Belohnungen
+export function grantBattlepass(u, xp) {
+  u.bp.xp += xp;
+  const tier = bpTier(u.bp.xp);
+  const got = [];
+  for (let t = 1; t <= tier; t++) {
+    if (u.bp.claimed.includes(t)) continue;
+    const r = REWARDS[t];
+    u.bp.claimed.push(t);
+    if (r.type === 'item') { if (!u.inventory.includes(r.id)) u.inventory.push(r.id); got.push(ITEM_BY_ID[r.id]?.name || r.id); }
+    else if (r.type === 'coins') { u.coins += r.n; got.push(`${r.n} Münzen`); }
+    else if (r.type === 'crate') { u.crates[r.crate] = (u.crates[r.crate] || 0) + r.n; got.push(`${r.n}× ${CRATES[r.crate].name}`); }
+  }
+  void SEASON;
+  return got;
 }

@@ -47,7 +47,7 @@ export function makeCharacter(loadout = {}, team = 'N', zombie = false) {
   const face = ITEM_BY_ID[loadout.face] || ITEM_BY_ID.h_smile;
   const hat = ITEM_BY_ID[loadout.hat] || ITEM_BY_ID.a_none;
   const gloves = ITEM_BY_ID[loadout.gloves] || ITEM_BY_ID.g_black;
-  const skin = zombie ? 0x6f9a52 : face.skin;
+  const skin = zombie ? 0x6f9a52 : (ITEM_BY_ID[loadout.skin]?.color ?? face.skin);
   const torsoC = zombie ? 0x4a5a3a : outfit.torso, legsC = zombie ? 0x33402a : outfit.legs;
   const root = new THREE.Group();
   const body = new THREE.Group(); root.add(body);
@@ -90,16 +90,18 @@ function addHat(head, hat) {
   }
 }
 
-// Animation pro Frame. s: { speed, crouch, pitch, alive, ground, dt, zombie, firing, action }
+// Animation pro Frame. s: { speed, crouch, pitch, alive, ground, dt, zombie, firing, action, emote: {anim, t} }
 export function animateCharacter(root, s) {
   const u = root.userData;
+  for (const part of [u.armL, u.armR, u.legL, u.legR, u.head, u.body]) { part.rotation.z = 0; part.rotation.y = 0; }
+  if (s.alive && s.emote) return animateEmote(u, s.emote.anim, s.emote.t);
   if (!s.alive) {
     u.deadT = Math.min(1, u.deadT + s.dt * 4);
     u.body.rotation.x = -u.deadT * Math.PI / 2;
     u.body.position.y = u.deadT * 0.2;
     return;
   }
-  u.deadT = 0; u.body.rotation.x = 0; u.body.position.y = 0;
+  u.deadT = 0; u.body.rotation.set(0, 0, 0); u.body.position.y = 0; u.gunHolder.visible = true;
   u.phase += s.dt * Math.min(s.speed, 7) * 2.2;
   const swing = Math.sin(u.phase) * Math.min(1, s.speed / 4) * 0.7;
   const air = !s.ground;
@@ -119,6 +121,24 @@ export function animateCharacter(root, s) {
     u.armR.rotation.x = Math.PI / 2 + s.pitch;
     u.armL.rotation.x = Math.PI / 2 + s.pitch - 0.1;
     u.armL.rotation.y = -0.6; u.armL.position.z = -0.05;
+  }
+}
+
+function animateEmote(u, anim, t) {
+  const b = u.body;
+  b.position.set(0, 0, 0); b.rotation.set(0, 0, 0);
+  u.legL.rotation.x = 0; u.legR.rotation.x = 0; u.armL.rotation.x = 0; u.armR.rotation.x = 0; u.head.rotation.x = 0;
+  u.gunHolder.visible = false;
+  const sin = Math.sin;
+  switch (anim) {
+    case 'wave': u.armR.rotation.z = 2.7 + sin(t * 10) * 0.35; break;
+    case 'salute': u.armR.rotation.x = 2.2; u.armR.rotation.z = 0.9; u.head.rotation.x = -0.1; break;
+    case 'facepalm': u.armR.rotation.x = 2.5; u.armR.rotation.z = 0.5; u.head.rotation.x = 0.45; break;
+    case 'flex': { const k = 0.5 + 0.5 * sin(t * 6); u.armL.rotation.z = -1.6 - k * 0.6; u.armR.rotation.z = 1.6 + k * 0.6; u.armL.rotation.x = 0.4 * k; u.armR.rotation.x = 0.4 * k; break; }
+    case 'jacks': { const k = 0.5 + 0.5 * sin(t * 9); u.armL.rotation.z = -k * 2.9; u.armR.rotation.z = k * 2.9; u.legL.rotation.z = -k * 0.4; u.legR.rotation.z = k * 0.4; b.position.y = Math.abs(sin(t * 9)) * 0.15; break; }
+    case 'dance': b.rotation.y = sin(t * 4) * 0.5; b.position.y = Math.abs(sin(t * 8)) * 0.12; u.armL.rotation.z = -1.2 + sin(t * 8) * 0.8; u.armR.rotation.z = 1.2 + sin(t * 8 + 1.5) * 0.8; u.legL.rotation.x = sin(t * 8) * 0.5; u.legR.rotation.x = -sin(t * 8) * 0.5; u.head.rotation.z = sin(t * 8) * 0.2; break;
+    case 'spin': b.rotation.y = t * 9; u.armL.rotation.z = -1.5; u.armR.rotation.z = 1.5; break;
+    case 'robot': { const step = Math.floor(t * 4) % 4; u.armL.rotation.x = [1.5, 0, 1.5, 0.7][step]; u.armR.rotation.x = [0, 1.5, 0.7, 1.5][step]; u.head.rotation.y = [0.4, -0.4, 0, 0.4][step]; b.rotation.y = [0, 0.3, -0.3, 0][step]; break; }
   }
 }
 
@@ -226,7 +246,7 @@ export class Viewmodel {
     this.root = new THREE.Group();
     this.scene.add(this.root);
     this.gun = null; this.key = null;
-    this.kick = 0; this.bobT = 0; this.swayX = 0; this.swayY = 0; this.drawT = 1; this.swing = 0; this.reloadT = 0; this.reloadDur = 1;
+    this.kick = 0; this.bobT = 0; this.swayX = 0; this.swayY = 0; this.drawT = 1; this.swing = 0; this.reloadT = 0; this.reloadDur = 1; this.inspectT = 0; this.sprintK = 0;
     this.flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: flashTexture(), color: 0xffd28a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
     this.flash.scale.set(0.25, 0.25, 1); this.flash.visible = false;
     this.flashT = 0;
@@ -260,7 +280,8 @@ export class Viewmodel {
   }
   fire() { this.kick = 1; this.flashT = 0.05; this.flash.visible = true; this.flash.material.rotation = Math.random() * 6; }
   melee() { this.swing = 1; }
-  reload(d) { this.reloadT = d; this.reloadDur = d; }
+  reload(d) { this.reloadT = d; this.reloadDur = d; this.inspectT = 0; }
+  inspect() { if (this.reloadT <= 0) this.inspectT = 3.2; }
   update(dt, s) {
     this.camera.aspect = s.aspect; this.camera.updateProjectionMatrix();
     this.kick = Math.max(0, this.kick - dt * 9);
@@ -273,9 +294,17 @@ export class Viewmodel {
     this.swayX += (-s.mouseX * 0.0015 - this.swayX) * Math.min(1, dt * 10);
     this.swayY += (s.mouseY * 0.0015 - this.swayY) * Math.min(1, dt * 10);
     const r = this.reloadT > 0 ? Math.sin(Math.PI * (1 - this.reloadT / this.reloadDur)) : 0;
+    if (this.kick > 0.5 || s.moving) this.inspectT = Math.min(this.inspectT, 0.4);
+    this.inspectT = Math.max(0, this.inspectT - dt);
+    this.sprintK += ((s.sprint ? 1 : 0) - this.sprintK) * Math.min(1, dt * 8);
+    // Betrachten: Waffe zur Seite drehen, kippen, zurück (weich ein- und ausgeblendet)
+    const it = this.inspectT, phase = 3.2 - it;
+    const ease = it > 0 ? Math.min(1, phase * 3, it * 3) : 0;
+    const iy = ease * (phase < 1.7 ? 0.95 : 0.95 - (phase - 1.7) * 1.2);
+    const iz = ease * (phase > 1.2 && phase < 2.6 ? Math.sin((phase - 1.2) / 1.4 * Math.PI) * 0.9 : 0);
     const p = this.root.position, rot = this.root.rotation;
-    p.set(0.24 + Math.cos(this.bobT) * 0.012 * bob + this.swayX, -0.24 + Math.abs(Math.sin(this.bobT)) * 0.012 * bob - (1 - this.drawT) * 0.3 - r * 0.08 + this.swayY, -0.46 + this.kick * 0.05);
-    rot.set(this.kick * 0.12 - r * 0.6 + this.swing * -0.9, this.swing * 0.6, r * 0.35 + this.swing * 0.4);
+    p.set(0.24 + Math.cos(this.bobT) * 0.012 * bob + this.swayX - ease * 0.06 + this.sprintK * 0.04, -0.24 + Math.abs(Math.sin(this.bobT)) * 0.012 * bob * (1 + this.sprintK) - (1 - this.drawT) * 0.3 - r * 0.08 + this.swayY - ease * 0.03 - this.sprintK * 0.06, -0.46 + this.kick * 0.05 - ease * 0.16);
+    rot.set(this.kick * 0.12 - r * 0.6 + this.swing * -0.9 - this.sprintK * 0.45, this.swing * 0.6 + iy + this.sprintK * 0.6, r * 0.35 + this.swing * 0.4 + iz + this.sprintK * 0.25);
     this.root.visible = !s.scoped;
   }
 }
@@ -302,8 +331,9 @@ export function nameSprite(text, color = '#5aa7ff') {
   g.lineWidth = 5; g.strokeStyle = '#000a'; g.strokeText(text, 128, 24);
   g.fillStyle = color; g.fillText(text, 128, 24);
   const t = new THREE.CanvasTexture(cv);
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true }));
-  s.scale.set(1.4, 0.26, 1);
+  // feste Bildschirmgröße statt mitwachsender Weltgröße
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true, sizeAttenuation: false }));
+  s.scale.set(0.11, 0.0206, 1);
   s.renderOrder = 10;
   return s;
 }

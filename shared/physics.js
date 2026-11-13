@@ -113,7 +113,9 @@ export function simulate(s, inp, dt, world, opts = {}) {
   const len = Math.hypot(fx, fz);
   if (len > 0) { fx /= len; fz /= len; }
   let wish = len > 0 ? MOVE.speed * mult : 0;
-  if (s.c) wish *= MOVE.crouchMult; else if (k & KEY.WALK) wish *= MOVE.walkMult;
+  if (s.c) wish *= MOVE.crouchMult;
+  else if (k & KEY.WALK) wish *= MOVE.walkMult;
+  else if ((k & KEY.SPRINT) && (k & KEY.F) && !(k & KEY.B) && !opts.noSprint) wish *= MOVE.sprintMult; // Sprint nur vorwärts
 
   if (s.g) {
     // Reibung

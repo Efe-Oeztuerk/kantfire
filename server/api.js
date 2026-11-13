@@ -2,7 +2,8 @@
 import express from 'express';
 import * as db from './db.js';
 import { hashPassword, checkPassword, rateLimit, validName, cleanText, log } from './security.js';
-import { ITEMS, ITEM_BY_ID, shopPrice } from '../shared/cosmetics.js';
+import { ITEMS, ITEM_BY_ID, shopPrice, inShop, inCrates, CRATES, DUPLICATE_REFUND, RARITIES, SLOT_TYPES } from '../shared/cosmetics.js';
+import crypto from 'crypto';
 import { WEAPONS } from '../shared/weapons.js';
 import { levelInfo, rankFor, RANKED_MODES } from '../shared/progression.js';
 import { ensureChallenges } from './progress.js';
@@ -64,7 +65,7 @@ export function api(hub) {
   r.put('/loadout', auth, (req, res) => {
     const u = req.user, lo = req.body?.loadout || {};
     const owned = (id, type) => u.inventory.includes(id) && ITEM_BY_ID[id]?.type === type;
-    for (const [slot, type] of [['outfit', 'outfit'], ['face', 'face'], ['hat', 'hat'], ['gloves', 'gloves']]) if (lo[slot] && owned(lo[slot], type)) u.loadout[slot] = lo[slot];
+    for (const [slot, type] of Object.entries(SLOT_TYPES)) if (lo[slot] && owned(lo[slot], type)) u.loadout[slot] = lo[slot];
     if (lo.finishes && typeof lo.finishes === 'object') {
       for (const [w, f] of Object.entries(lo.finishes)) {
         if (!WEAPONS[w]) continue;
@@ -77,17 +78,41 @@ export function api(hub) {
   });
 
   r.get('/shop', auth, (req, res) => {
-    res.json({ coins: req.user.coins, items: ITEMS.filter((i) => !req.user.inventory.includes(i.id)).map((i) => ({ ...i, price: shopPrice(i) })) });
+    res.json({ coins: req.user.coins, crates: Object.values(CRATES), items: ITEMS.filter((i) => inShop(i) && !req.user.inventory.includes(i.id)).map((i) => ({ ...i, price: shopPrice(i) })) });
   });
   r.post('/shop/buy', auth, (req, res) => {
     const u = req.user, item = ITEM_BY_ID[req.body?.item];
     if (!item) return res.status(404).json({ error: 'Unbekannter Gegenstand' });
+    if (!inShop(item)) return res.status(400).json({ error: 'Nur über Battlepass oder Truhen erhältlich' });
     if (u.inventory.includes(item.id)) return res.status(400).json({ error: 'Bereits im Inventar' });
     const price = shopPrice(item);
     if (u.coins < price) return res.status(400).json({ error: 'Nicht genug Münzen' });
     u.coins -= price; u.inventory.push(item.id);
     db.markDirty();
     res.json({ ok: true, coins: u.coins, inventory: u.inventory });
+  });
+
+  // Truhe öffnen: Ergebnis wird ausschließlich auf dem Server ausgelost
+  r.post('/crate/open', auth, (req, res) => {
+    const u = req.user, c = CRATES[req.body?.crate];
+    if (!c) return res.status(404).json({ error: 'Unbekannte Truhe' });
+    if (!rateLimit('crate:' + u.id, 30)) return res.status(429).json({ error: 'Bitte kurz warten' });
+    if ((u.crates[c.id] || 0) > 0) u.crates[c.id]--;
+    else if (u.coins >= c.price) u.coins -= c.price;
+    else return res.status(400).json({ error: 'Nicht genug Münzen' });
+    const rarities = Object.keys(RARITIES);
+    const total = Object.values(c.weights).reduce((a, b) => a + b, 0);
+    let roll = crypto.randomInt(0, 1_000_000) / 1_000_000 * total, rarity = 'common';
+    for (const r of rarities) { roll -= c.weights[r] || 0; if (roll < 0) { rarity = r; break; } }
+    let pool = [];
+    for (let i = rarities.indexOf(rarity); i >= 0 && !pool.length; i--) pool = ITEMS.filter((it) => inCrates(it) && c.types.includes(it.type) && it.rarity === rarities[i] && it.id !== 'f_stock');
+    const item = pool[crypto.randomInt(0, pool.length)];
+    let dup = false, refund = 0;
+    if (u.inventory.includes(item.id)) { dup = true; refund = Math.round(shopPrice(item) * DUPLICATE_REFUND); u.coins += refund; }
+    else u.inventory.push(item.id);
+    db.markDirty();
+    log('crate', `${u.name} öffnet ${c.id}: ${item.id}${dup ? ' (Duplikat)' : ''}`);
+    res.json({ item, dup, refund, coins: u.coins, crates: u.crates, inventory: u.inventory });
   });
 
   r.get('/leaderboard', auth, (req, res) => {
@@ -194,7 +219,7 @@ export function publicProfile(u, hub) {
 function privateProfile(u, hub) {
   const lookup = (ids) => ids.map((id) => db.getUser(id)).filter(Boolean).map((f) => ({ id: f.id, name: f.name, level: levelInfo(f.xp).level, ...hub.presence(f.id) }));
   return {
-    ...publicProfile(u, hub), coins: u.coins, inventory: u.inventory, settings: u.settings, challenges: u.challenges,
+    ...publicProfile(u, hub), coins: u.coins, inventory: u.inventory, settings: u.settings, challenges: u.challenges, crates: u.crates, bp: u.bp,
     friends: lookup(u.friends), requests: lookup(u.requests), blocked: lookup(u.blocked),
   };
 }

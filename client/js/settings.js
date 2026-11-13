@@ -2,10 +2,10 @@
 import { api } from './api.js';
 
 export const ACTIONS = {
-  forward: 'Vorwärts', back: 'Rückwärts', left: 'Links', right: 'Rechts', jump: 'Springen', crouch: 'Ducken', walk: 'Gehen (leise)',
+  forward: 'Vorwärts', back: 'Rückwärts', left: 'Links', right: 'Rechts', jump: 'Springen', crouch: 'Ducken', walk: 'Langsam gehen (leise)', sprint: 'Sprinten',
   fire: 'Schießen', alt: 'Zielen / Zielfernrohr', reload: 'Nachladen', use: 'Interagieren (Bombe, Aufheben)', drop: 'Waffe fallen lassen',
   slot1: 'Primärwaffe', slot2: 'Sekundärwaffe', slot3: 'Nahkampf', slot4: 'Granaten', slot5: 'Bombe',
-  buy: 'Kaufmenü / Waffenwahl', score: 'Punktestand', chat: 'Chat (alle)', teamchat: 'Chat (Team)',
+  buy: 'Kaufmenü / Waffenwahl', score: 'Punktestand', chat: 'Chat (alle)', teamchat: 'Chat (Team)', inspect: 'Waffe betrachten', emote: 'Emote',
 };
 
 export const DEFAULTS = {
@@ -14,10 +14,10 @@ export const DEFAULTS = {
   controls: {
     sens: 1.0, adsSens: 0.8, scopeSens: 0.7, invert: false,
     keys: {
-      forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', jump: 'Space', crouch: 'KeyC', walk: 'ShiftLeft',
+      forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', jump: 'Space', crouch: 'KeyC', walk: 'KeyQ', sprint: 'ShiftLeft',
       fire: 'Mouse0', alt: 'Mouse2', reload: 'KeyR', use: 'KeyE', drop: 'KeyG',
       slot1: 'Digit1', slot2: 'Digit2', slot3: 'Digit3', slot4: 'Digit4', slot5: 'Digit5',
-      buy: 'KeyB', score: 'Tab', chat: 'KeyY', teamchat: 'KeyU',
+      buy: 'KeyB', score: 'Tab', chat: 'KeyY', teamchat: 'KeyU', inspect: 'KeyF', emote: 'KeyV',
     },
   },
   gameplay: {
@@ -34,13 +34,18 @@ function merge(def, val) {
   return out;
 }
 
-export const settings = merge(DEFAULTS, JSON.parse(localStorage.getItem('kf_settings') || 'null'));
+function migrate(st) {
+  const k = st.controls.keys;
+  if (k.walk === 'ShiftLeft' && k.sprint === 'ShiftLeft') k.walk = 'KeyQ';
+  return st;
+}
+export const settings = migrate(merge(DEFAULTS, JSON.parse(localStorage.getItem('kf_settings') || 'null')));
 const listeners = [];
 export function onSettings(fn) { listeners.push(fn); }
 
 export function applyServerSettings(s) {
   if (!s || !Object.keys(s).length) return;
-  Object.assign(settings, merge(DEFAULTS, s));
+  Object.assign(settings, migrate(merge(DEFAULTS, s)));
   localStorage.setItem('kf_settings', JSON.stringify(settings));
   listeners.forEach((f) => f(settings));
 }

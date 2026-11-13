@@ -80,9 +80,14 @@ export function sprayOffset(w, i) {
 // Streuung (rad) für den aktuellen Zustand
 export function currentSpread(w, { speed = 0, air = false, crouch = false, scoped = false }) {
   if (w.melee || w.cat === 'grenade') return 0;
+  const scopeOnly = w.cat === 'sniper';
   let base = scoped && w.scopedSpread != null ? w.scopedSpread : w.spread;
-  if (w.cat === 'sniper' && !scoped) base = w.spread;
-  let s = base + w.move * Math.min(1, speed / 6);
+  // Stillstand: deutlich präziser (Scharfschützengewehre nur mit Zielfernrohr)
+  if (speed < 0.6 && !air && (!scopeOnly || scoped)) base *= 0.45;
+  const run = 5.6 * (w.mob || 1); // normale Laufgeschwindigkeit mit dieser Waffe
+  let s = base + w.move * Math.min(1, speed / run);
+  // Sprinten: spürbar unpräziser
+  if (speed > run * 1.12) s += w.move * 1.0 + 0.035;
   if (air) s += w.jump;
   if (crouch) s *= 0.75;
   return s;

@@ -28,7 +28,9 @@ Dann im Browser **http://localhost:3000** öffnen, ein Konto registrieren und un
 | W A S D | Bewegen | Maus links | Schießen |
 | Leertaste | Springen | Maus rechts | Zielfernrohr |
 | C | Ducken | R | Nachladen |
-| Umschalt | Gehen (leise) | E | Bombe legen/entschärfen, Waffe tauschen |
+| Umschalt | Sprinten (schneller, aber ungenau) | E | Bombe legen/entschärfen, Waffe tauschen |
+| Q | Langsam gehen (leise) | F | Waffe betrachten |
+| V | Emote (kurze Außenansicht) | | |
 | 1–5 | Primär / Sekundär / Messer / Granaten / Bombe | G | Waffe fallen lassen |
 | B | Kaufmenü (Only Sniper: Waffenwahl) | Tab | Punktestand |
 | Y / U | Chat alle / Team | Esc | Pause-Menü (Host: Match starten, Bots) |
@@ -45,11 +47,21 @@ Ducken liegt bewusst auf **C** statt Strg: Strg+W schließt sonst den Browser-Ta
 | **Competitive 2v2** | Wie 5v5, aber kleine Map, ein Bombenplatz, 16 Runden (9 gewinnt), 90 s Runden. Eigene Rangliste. | Basar |
 | **Gun Game** | Jeder gegen jeden, 14 Waffenstufen (serverseitig konfigurierbar). Kill = nächste Waffe, automatischer Wechsel. Messer-Kill nimmt dem Opfer eine Stufe. Wer mit der letzten Stufe (Messer) killt, gewinnt. | Lagerhalle, Kraftwerk, Basar |
 | **Zombie-Modus** | Alle starten als Überlebende. Nach 15 s wird zufällig ein Mutterzombie gewählt (doppelte HP). Zombies infizieren per Klaue. Zwei Zombieklassen (Läufer: schnell, Panzer: viel HP). Überlebende gewinnen, wenn einer bis Zeitablauf überlebt. 3 Runden. Rückstoß auf Zombies bei Treffern. | Lagerhalle |
+| **Team Deathmatch** | Zwei Teams (bis 6 vs 6), Respawn nach 3 s mit Spawnschutz, freie Waffenwahl über B (gilt ab dem nächsten Respawn). 50 Kills oder 10 min. | Siedlung, Kraftwerk, Lagerhalle |
 | **Only Sniper** | Nur Scharfschützengewehre (4 Klassen: schwerer/leichter Repetierer, schwerer/leichter Halbautomat). Keine Kaufphase/Wirtschaft/Rüstung. Respawn 2 s mit 2 s Spawnschutz (endet beim Schießen). Kill 100 Punkte, Kopfschuss +50. Punktelimit 3000 oder 8 min. Optional 5v5 und One-Shot-Modus (in eigener Lobby wählbar). Countdown vor dem Start. Eigene Rangliste. | Skyline (Hochhausdächer) |
 
 Alle Zeiten, Preise und Regeln stehen in `server/config.js` und lassen sich über eine `config.json` im Projektordner überschreiben (Vorlage: `config.example.json`).
 
 ---
+
+### Präzision und Bewegung
+Im Stand treffen Schüsse fast genau den Zielpunkt (Streuung ×0,45). Beim Laufen streut es wie gewohnt, beim Sprinten (Umschalt, nur vorwärts, +28 % Tempo) deutlich stärker. Scharfschützengewehre sind nur mit Zielfernrohr präzise.
+
+### Kosmetik, Truhen und Battlepass
+- **Spind:** Waffen-Skins pro Waffe, Outfits, Hautfarben, Gesichter, Accessoires, Handschuhe, Emotes. Alles rein optisch, mit 3D-Vorschau am Charakter rechts im Menü.
+- **Truhen:** Standard-Truhe (alle Arten, 300 🪙) und Waffen-Truhe (nur Skins, 400 🪙). Das Ergebnis wird ausschließlich auf dem Server ausgelost. Die Drop-Chancen stehen offen im Shop. Duplikate geben 40 % des Shop-Preises zurück.
+- **Battlepass (kostenlos):** 30 Stufen à 700 XP. Jede Match-XP zählt. Belohnungen (Münzen, Truhen, exklusive Skins, Emotes, Hautfarben) werden automatisch gutgeschrieben. Konfiguration in `shared/battlepass.js`.
+- Kein Echtgeld: Münzen gibt es nur durch Spielen.
 
 ## 3. Architektur
 
@@ -214,7 +226,7 @@ Geprüft wurde unter anderem:
 ## 9. Erweitern
 
 - **Neue Waffe:** Eintrag in `shared/weapons.js` (`WEAPONS`). Kaufmenü, Gun Game, Statistiken und Skins übernehmen sie automatisch.
-- **Neue Map:** In `shared/maps.js` ein Objekt mit Raster-Befehlen (`fill`, `spawn`, `site`, `buyZone`) anlegen und in `MODE_MAPS` (`shared/constants.js`) eintragen. Kollision, Optik, Radar und Bot-Navigation entstehen daraus automatisch.
+- **Neue Map:** In `shared/maps.js` ein Objekt mit Raster-Befehlen (`fill`, `spawn`, `site`, `buyZone`) und freien 3D-Boxen (`box`, für Stockwerke, Fenster, Autos) anlegen und in `MODE_MAPS` (`shared/constants.js`) eintragen. Kollision, Optik, Radar und Bot-Navigation entstehen daraus automatisch.
 - **Neuer Modus:** Klasse in `server/modes/` von `Mode` oder `RespawnMode` ableiten, in `modes/index.js` und `MODES` registrieren.
 - **Neuer Skin:** Eintrag in `shared/cosmetics.js`.
 
@@ -234,7 +246,9 @@ Geprüft wurde unter anderem:
 | Durchschüsse durch Wände (Wallbang) | ❌ |
 | Alle 5 Modi inkl. Kaufphase, Wirtschaft, Seitenwechsel, Gun-Game-Leiter, Infektion, Sniper-Punkte | ✅ |
 | Verlängerung im Competitive | ⚠️ programmiert, aber nicht in einem kompletten Match getestet |
-| Maps: Kraftwerk (Industrie), Basar (Wüste), Lagerhalle, Skyline (Sniper) | ✅ |
+| Maps: Kraftwerk (Industrie), Basar (Wüste), Lagerhalle, Skyline (Sniper), Siedlung (2 Häuser mit OG, Brunnen, Autos) | ✅ |
+| Bots auf Obergeschossen der Siedlung | ⚠️ Bots laufen nur im Erdgeschoss, die Treppen nutzen sie nicht |
+| Team Deathmatch, Truhen, kostenloser Battlepass, Emotes, Hautfarben, Waffen-Inspect, Sprint | ✅ |
 | Map „Urban“ (Stadt/Parkhaus) | ❌ |
 | Echter Multiplayer, serverautoritär, Prediction, Interpolation, Lag Compensation, Reconnect | ✅ |
 | Matchmaking nach Rating, Auffüllen mit Bots, ausgeglichene Teams | ✅ |

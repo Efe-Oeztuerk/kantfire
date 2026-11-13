@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { getMap } from '/shared/maps.js';
 import { World, simulate, newMoveState, eyeHeight } from '/shared/physics.js';
 import { TICK_DT, INTERP_DELAY, KEY, MODES } from '/shared/constants.js';
+import { ITEM_BY_ID } from '/shared/cosmetics.js';
 import { WEAPONS, moveMult, sprayOffset, currentSpread, spreadSample, BOLT_ACTION } from '/shared/weapons.js';
 import { dirFromAngles, clamp, lerp, angleDiff } from '/shared/util.js';
 import { buildWorld, setupLights } from './world.js';
@@ -138,7 +139,7 @@ export class Game {
     const s = { x: me.x, y: me.y, z: me.z, vx: me.vx, vy: me.vy, vz: me.vz, g: !!me.g, c: !!me.c };
     this.pending = this.pending.filter((p) => p.s > ack);
     const w = this.currentWeapon();
-    const opts = { speedMult: moveMult(w, this.zoom, me.sm), frozen: this.frozenFlag() };
+    const opts = { speedMult: moveMult(w, this.zoom, me.sm), frozen: this.frozenFlag(), noSprint: this.zoom > 0 };
     for (const p of this.pending) simulate(s, p, TICK_DT, this.world, { ...opts, frozen: this.frozenFlag(p) });
     const err = Math.hypot(s.x - this.pred.x, s.y - this.pred.y, s.z - this.pred.z);
     if (err > 0.001) {
@@ -262,6 +263,12 @@ export class Game {
       case 'infect': this.fx.burst([e.x, e.y + 1, e.z], 0x6f9a52, 20, 3, 0.1, 0.7); break;
       case 'zround': this.hud.center(e.w === 'humans' ? 'Die Überlebenden gewinnen' : 'Die Zombies gewinnen', '', 4, (e.w === 'humans') === (this.self?.team === 'C') ? 'win' : 'lose'); break;
       case 'bought': audio.ui('buy'); break;
+      case 'emote': {
+        const anim = ITEM_BY_ID[e.em]?.anim || 'wave';
+        if (e.id === this.me) this.myEmote = { anim, start: performance.now() };
+        else { const r = this.remotes.get(e.id); if (r) r.emote = { anim, start: performance.now() }; }
+        break;
+      }
       case 'pickup': audio.ui('click'); break;
       case 'bombDrop': this.hud.sub('Die Bombe wurde fallen gelassen!', 2); break;
       case 'bombPick': this.hud.sub('Die Bombe wurde aufgehoben.', 1.5); break;
@@ -337,6 +344,8 @@ export class Game {
     else if (code === k.buy) this.hud.toggleBuy();
     else if (code === k.chat) this.hud.openChat(false);
     else if (code === k.teamchat) this.hud.openChat(true);
+    else if (code === k.inspect) { if (this.self?.al) this.vm.inspect(); }
+    else if (code === k.emote) { if (this.self?.al) this.net.send({ t: 'emote' }); }
     else if (code === k.fire && this.self && !this.self.al) this.nextSpec(1);
     else if (code === k.alt && this.self && !this.self.al) this.nextSpec(-1);
   }
@@ -360,7 +369,7 @@ export class Game {
       if (I.is('forward')) inp.k |= KEY.F; if (I.is('back')) inp.k |= KEY.B;
       if (I.is('left')) inp.k |= KEY.L; if (I.is('right')) inp.k |= KEY.R;
       if (I.is('jump')) inp.k |= KEY.JUMP; if (I.is('crouch')) inp.k |= KEY.CROUCH;
-      if (I.is('walk')) inp.k |= KEY.WALK; if (I.is('reload')) inp.k |= KEY.RELOAD;
+      if (I.is('walk')) inp.k |= KEY.WALK; if (I.is('sprint')) inp.k |= KEY.SPRINT; if (I.is('reload')) inp.k |= KEY.RELOAD;
       if (I.is('use')) inp.k |= KEY.USE; if (I.is('drop')) inp.k |= KEY.DROP;
     }
     if (active && I.is('fire')) inp.k |= KEY.FIRE;
@@ -372,7 +381,7 @@ export class Game {
     Object.assign(this.prevPred, this.pred);
     const w = this.currentWeapon();
     const wasG = this.pred.g, vyBefore = this.pred.vy;
-    simulate(this.pred, inp, TICK_DT, this.world, { speedMult: moveMult(w, this.zoom, s.sm), frozen: this.frozenFlag(inp) });
+    simulate(this.pred, inp, TICK_DT, this.world, { speedMult: moveMult(w, this.zoom, s.sm), frozen: this.frozenFlag(inp), noSprint: this.zoom > 0 });
     // eigene Schritte / Sprünge
     const sp = Math.hypot(this.pred.vx, this.pred.vz);
     if (this.pred.g && sp > 3 && !(inp.k & KEY.WALK) && !this.pred.c) {
@@ -513,6 +522,35 @@ export class Game {
         if (k) { yaw = Math.atan2(-(k.x - camPos[0]), -(k.z - camPos[2])); pitch = Math.atan2(k.y + 1 - camPos[1], Math.hypot(k.x - camPos[0], k.z - camPos[2])); }
       }
     } else camPos = [0, 20, 0];
+    // eigenes Emote: kurz in die Außenansicht wechseln
+    const em = this.myEmote;
+    const moving = this.input.is('forward') || this.input.is('back') || this.input.is('left') || this.input.is('right') || this.input.is('fire') || this.input.is('jump');
+    let emoteView = false;
+    if (em && s?.al && !moving && (performance.now() - em.start) / 1000 < 2.8) {
+      emoteView = true;
+      if (!this.selfModel || this.selfModelKey !== JSON.stringify(this.app.profile?.loadout) + s.team) {
+        if (this.selfModel) this.scene.remove(this.selfModel);
+        this.selfModel = makeCharacter(this.app.profile?.loadout, s.team);
+        this.selfModelKey = JSON.stringify(this.app.profile?.loadout) + s.team;
+        this.scene.add(this.selfModel);
+      }
+      const base = [camPos[0], camPos[1] - this.eyeH, camPos[2]];
+      this.selfModel.visible = true;
+      this.selfModel.position.set(base[0], base[1], base[2]);
+      this.selfModel.rotation.y = this.yaw;
+      animateCharacter(this.selfModel, { speed: 0, alive: true, ground: true, dt, pitch: 0, emote: { anim: em.anim, t: (performance.now() - em.start) / 1000 } });
+      const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
+      const want = [base[0] + fx * 3.2, base[1] + 1.7, base[2] + fz * 3.2];
+      const d = [want[0] - base[0], want[1] - base[1] - 1.2, want[2] - base[2]], dl = Math.hypot(...d);
+      const hit = this.world.raycast([base[0], base[1] + 1.2, base[2]], d.map((v) => v / dl), dl);
+      const k = Math.max(0.3, (hit.dist - 0.3) / dl);
+      camPos = [base[0] + d[0] * k, base[1] + 1.2 + d[1] * k, base[2] + d[2] * k];
+      yaw = Math.atan2(-(base[0] - camPos[0]), -(base[2] - camPos[2]));
+      pitch = Math.atan2(base[1] + 1.1 - camPos[1], Math.hypot(base[0] - camPos[0], base[2] - camPos[2]));
+    } else {
+      if (this.selfModel) this.selfModel.visible = false;
+      if (em && (moving || (performance.now() - em.start) / 1000 >= 2.8)) this.myEmote = null;
+    }
     if (this.shake > 0) { this.shake -= dt; camPos[0] += (Math.random() - 0.5) * this.shake * 0.3; camPos[1] += (Math.random() - 0.5) * this.shake * 0.3; }
     this.camera.position.set(camPos[0], camPos[1], camPos[2]);
     this.camera.rotation.set(pitch, yaw, 0, 'YXZ');
@@ -526,7 +564,8 @@ export class Game {
       const inst = this.currentInst();
       this.vm.set(inst?.id, this.app.profile?.loadout?.finishes?.[inst?.id] || 'f_stock', this.app.profile?.loadout?.gloves);
     }
-    this.vm.update(dt, { aspect: this.camera.aspect, speed: Math.hypot(this.pred.vx, this.pred.vz), ground: this.pred.g, mouseX: mx, mouseY: my, scoped: sniperScope || !s?.al });
+    const spd = Math.hypot(this.pred.vx, this.pred.vz);
+    this.vm.update(dt, { aspect: this.camera.aspect, speed: spd, ground: this.pred.g, mouseX: mx, mouseY: my, scoped: sniperScope || !s?.al || emoteView, sprint: spd > 5.6 * (this.currentWeapon()?.mob || 1) * 1.12 && this.pred.g, moving: spd > 0.5 });
     // Bombe
     this.updateBomb(dt);
     this.fx.update(dt);
@@ -536,7 +575,7 @@ export class Game {
     // Zeichnen
     this.renderer.autoClear = true;
     this.renderer.render(this.scene, this.camera);
-    if (s?.al && !sniperScope) {
+    if (s?.al && !sniperScope && !emoteView) {
       this.renderer.autoClear = false;
       this.renderer.clearDepth();
       this.renderer.render(this.vm.scene, this.vm.camera);
@@ -566,7 +605,9 @@ export class Game {
     let speed = 0;
     if (prev) speed = Math.hypot(st.x - prev.x, st.z - prev.z) / Math.max(dt, 1e-3);
     setCharacterGun(m, alive ? st.wid : null, m.userData.finishes?.[st.wid]);
-    animateCharacter(m, { speed, crouch: !!(st.f & 2), pitch: st.pitch, alive, ground, dt, action: st.f & (64 | 128) });
+    let emote = null;
+    if (r.emote) { const t = (performance.now() - r.emote.start) / 1000; if (t < 2.8 && speed < 1) emote = { anim: r.emote.anim, t }; else r.emote = null; }
+    animateCharacter(m, { speed, crouch: !!(st.f & 2), pitch: st.pitch, alive, ground, dt, action: st.f & (64 | 128), emote });
     m.visible = alive || m.userData.deadT < 1 || true;
     if (r.tag) r.tag.visible = alive;
     // Geräusche aus der Bewegung ableiten
