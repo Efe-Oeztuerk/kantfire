@@ -1,7 +1,7 @@
 // Hauptmenü: Seitenleiste, Seiteninhalt und dauerhaft sichtbarer 3D-Charakter.
 import * as THREE from 'three';
 import { api, setToken } from '../api.js';
-import { MODES, MODE_MAPS, GAME_NAME } from '/shared/constants.js';
+import { MODES, MODE_MAPS, GAME_NAME, BOT_LEVELS } from '/shared/constants.js';
 import { MAP_LIST } from '/shared/maps.js';
 import { WEAPONS } from '/shared/weapons.js';
 import { ITEMS, ITEM_BY_ID, RARITIES, CRATES, TYPE_NAMES } from '/shared/cosmetics.js';
@@ -254,7 +254,7 @@ export class Menu {
       <label>Map <select class="mp"></select></label>
       <label>Passwort (optional) <input class="pw" maxlength="30"></label>
       <label class="row"><input type="checkbox" class="bt" checked> Freie Plätze mit Bots füllen</label>
-      <label>Bot-Stärke <input type="range" class="df" min="0.1" max="1" step="0.05" value="0.55"></label>
+      <label>Bot-Stärke <select class="df">${BOT_LEVELS.map((l) => `<option value="${l.v}" ${l.id === 'normal' ? 'selected' : ''}>${l.name}</option>`).join('')}</select></label>
       <div class="rules"></div>
       <div class="muted" style="font-size:12px">Ihr startet in einer Aufwärmphase. Als Host startest du das Match über Esc → „Match starten“.</div>
       <button class="primary go">Erstellen</button></div>`);

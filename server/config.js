@@ -4,7 +4,7 @@ import path from 'path';
 
 const DEFAULTS = {
   server: { name: process.env.SERVER_NAME || 'KANTFIRE Server', region: process.env.REGION || 'EU', maxRooms: 40 },
-  matchmaking: { waitBeforeBots: 12, fillWithBots: true, botDifficulty: 0.55 },
+  matchmaking: { waitBeforeBots: 12, fillWithBots: true, botDifficulty: 0.4 }, // 0.4 = Stufe „Normal“
   comp5: {
     freezeTime: 10, buyTime: 30, roundTime: 105, bombTimer: 40, plantTime: 3, defuseTime: 10, kitDefuseTime: 5,
     maxRounds: 24, winRounds: 13, overtime: true, overtimeRounds: 6, overtimeMoney: 10000, roundEndTime: 5,

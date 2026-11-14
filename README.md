@@ -63,6 +63,13 @@ Im Stand treffen Schüsse fast genau den Zielpunkt (Streuung ×0,45). Beim Laufe
 - **Battlepass (kostenlos):** 30 Stufen à 700 XP. Jede Match-XP zählt. Belohnungen (Münzen, Truhen, exklusive Skins, Emotes, Hautfarben) werden automatisch gutgeschrieben. Konfiguration in `shared/battlepass.js`.
 - Kein Echtgeld: Münzen gibt es nur durch Spielen.
 
+### Bots und Spawns
+- Bot-Stärke in 6 Stufen: Anfänger, Leicht, Normal (Standard), Gut, Profi, Experte. Einstellbar beim Erstellen einer Lobby und als Host im Esc-Menü während des Spiels.
+- Spawnpunkte werden pro Map automatisch verteilt: In Teammodi startet jedes Team auf seiner eigenen Kartenseite, in Jeder-gegen-jeden-Modi möglichst weit weg von Gegnern und nie zweimal hintereinander am selben Punkt.
+
+### Admin-Werkzeuge
+Ein verstecktes Admin-Panel (Münzen, Truhen, XP/Battlepass, Items, Sperren, Kicken, Meldungen, Übersicht, Ansagen). Wer Admin ist, legt ausschließlich der Server über `ADMIN_USERS` fest. Jede Aktion steht im Log (`[admin]`). Gesperrte Accounts können sich nicht mehr anmelden.
+
 ## 3. Architektur
 
 ```
@@ -197,6 +204,7 @@ und auf dem Server `ALLOWED_ORIGIN=https://dein-client.vercel.app` setzen. Einfa
 | `AUTH_RATE` | 5 | Registrierungen pro Minute und IP (Login: 10) |
 | `SUPABASE_URL` | – | Supabase-Projekt-URL (aktiviert Datenbankspeicher) |
 | `SUPABASE_SERVICE_KEY` | – | geheimer Supabase-Schlüssel (nur auf dem Server!) |
+| `ADMIN_USERS` | – | Accountnamen mit Admin-Rechten, kommagetrennt (z. B. `Efe,Efe2`) |
 
 ### Serveranforderungen
 Ein Node-Prozess betreibt bis zu 40 Matches gleichzeitig (`server.maxRooms`). Im Test lief der Server mit 6 parallelen Räumen voller Bots bei unter 10 % CPU-Last eines Kerns und ca. 130 MB RAM. Für 10–20 gleichzeitige Matches reichen 1 vCPU und 512 MB RAM. Netzwerk: ca. 15–25 KB/s pro Spieler.

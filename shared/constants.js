@@ -60,3 +60,18 @@ export const MODE_MAPS = {
   zombie: ['lagerhalle', 'siedlung'],
   sniper: ['skyline', 'siedlung'],
 };
+
+// Bot-Stufen (Wert 0..1 steuert Reaktionszeit, Zielgenauigkeit, Sichtweite und Drehgeschwindigkeit)
+export const BOT_LEVELS = [
+  { id: 'beginner', name: 'Anfänger', v: 0.12 },
+  { id: 'easy', name: 'Leicht', v: 0.25 },
+  { id: 'normal', name: 'Normal', v: 0.4 },
+  { id: 'good', name: 'Gut', v: 0.58 },
+  { id: 'pro', name: 'Profi', v: 0.78 },
+  { id: 'expert', name: 'Experte', v: 0.95 },
+];
+export function botLevelName(v) {
+  let best = BOT_LEVELS[0];
+  for (const l of BOT_LEVELS) if (Math.abs(l.v - v) < Math.abs(best.v - v)) best = l;
+  return best.name;
+}

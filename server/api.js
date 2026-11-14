@@ -43,6 +43,7 @@ export function api(hub) {
       log('auth', `Fehlgeschlagener Login für ${String(name).slice(0, 20)} von ${ipOf(req)}`);
       return res.status(401).json({ error: 'Name oder Passwort falsch' });
     }
+    if (u.banned) return res.status(403).json({ error: `Dieser Account ist gesperrt${u.banReason ? ': ' + u.banReason : ''}.` });
     res.json({ token: db.newSession(u.id) });
   });
 

@@ -7,6 +7,7 @@ import * as db from './db.js';
 import { Hub } from './hub.js';
 import { api } from './api.js';
 import { CONFIG } from './config.js';
+import { adminApi } from './admin.js';
 import { log } from './security.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -30,6 +31,7 @@ const server = http.createServer(app);
 const hub = new Hub(server);
 hub.region = CONFIG.server.region;
 
+app.use('/api/admin', adminApi(hub));
 app.use('/api', api(hub));
 app.get('/health', (req, res) => res.json({ ok: true, rooms: hub.rooms.size, online: hub.byUser.size, storage: db.backend, uptime: Math.round(process.uptime()) }));
 app.use('/shared', express.static(path.join(root, 'shared'), { maxAge: '1h' }));

@@ -61,6 +61,7 @@ export class RespawnMode extends Mode {
   onKill(v) { v.respawnAt = this.time + this.respawnTime; }
   spawnList(p) {
     const s = this.room.map.spawns;
+    if (this.teamBased && s[p.team + 'S']?.length) return s[p.team + 'S'];
     if (this.teamBased && s[p.team]?.length) return s[p.team];
     return s.P.length ? s.P : [...s.T, ...s.C];
   }

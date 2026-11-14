@@ -109,6 +109,7 @@ export class Hub {
       case 'leave': if (c.room && c.player) c.room.removePlayer(c.player, 'verlassen'); c.room = null; c.player = null; c.send({ t: 'left' }); this.pushPresence(u.id); break;
       case 'start': if (c.room && c.room.hostUserId === u.id && !c.room.started) { c.room.fillWithBots(); c.room.startMatch(); } break;
       case 'team': if (c.room?.mode.switchTeam) c.room.mode.switchTeam(c.player, m.team); break;
+      case 'botDiff': if (c.room && c.room.hostUserId === u.id) { c.room.setBotDifficulty(m.v); c.room.system('Bot-Stärke geändert.'); } break;
       case 'botAdd': if (c.room && c.room.hostUserId === u.id) c.room.addBot(); break;
       case 'botKick': if (c.room && c.room.hostUserId === u.id) { const b = [...c.room.players.values()].reverse().find((p) => p.bot); if (b) c.room.removePlayer(b, 'gekickt'); } break;
       case 'buy': if (c.room && c.player) c.room.buy(c.player, String(m.item)); break;

@@ -103,11 +103,60 @@ export function compileMap(def) {
   map.raw = raw;
   const toPts = (list) => list.map(([x, z]) => { const [wx, wz] = cellToWorld(map, x, z); return [wx, heightAt(map, x, z), wz]; });
   map.spawns = { T: toPts(spawns.T), C: toPts(spawns.C), P: toPts(spawns.P) };
+  // Automatisch verteilte Spawnpunkte: FFA über die ganze Map, Teams jeweils auf ihrer Seite
+  const open = openCells(map, raw);
+  if (open.length) {
+    map.spawns.P = toPts(spread(open, 20, map));
+    if (spawns.T.length && spawns.C.length) {
+      const cen = (l) => l.reduce((a, [x, z]) => [a[0] + x / l.length, a[1] + z / l.length], [0, 0]);
+      const t = cen(spawns.T), c = cen(spawns.C);
+      const ax = [t[0] - c[0], t[1] - c[1]], len = Math.hypot(ax[0], ax[1]) || 1;
+      const proj = ([x, z]) => ((x - c[0]) * ax[0] + (z - c[1]) * ax[1]) / len / len; // 0 = C-Seite, 1 = T-Seite
+      const tSide = open.filter((q) => proj(q) > 0.62), cSide = open.filter((q) => proj(q) < 0.38);
+      map.spawns.TS = toPts(spread(tSide.length >= 6 ? tSide : spawns.T, 12, map));
+      map.spawns.CS = toPts(spread(cSide.length >= 6 ? cSide : spawns.C, 12, map));
+    }
+  }
   map.sites = zones.map((z) => ({ name: z.name, ...rectToWorld(map, z) }));
   map.buyZones = {};
   for (const t in buy) map.buyZones[t] = rectToWorld(map, buy[t]);
   map.bounds = { min: [-(map.w * CELL) / 2, -(map.h * CELL) / 2], max: [(map.w * CELL) / 2, (map.h * CELL) / 2] };
   return map;
+}
+
+// Freie Zellen: begehbar, alle 8 Nachbarn auf gleicher Höhe begehbar, nicht in einem 3D-Objekt
+function openCells(map, raw) {
+  const out = [];
+  const h = (x, z) => { const c = map.grid[z]?.[x]; return c == null || c === ' ' || TALL.has(c) || c === 'k' ? null : heightAt(map, x, z); };
+  for (let z = 1; z < map.h - 1; z++) for (let x = 1; x < map.w - 1; x++) {
+    const hc = h(x, z);
+    if (hc === null) continue;
+    let ok = true;
+    for (let dz = -1; dz <= 1 && ok; dz++) for (let dx = -1; dx <= 1 && ok; dx++) { const n = h(x + dx, z + dz); if (n === null || Math.abs(n - hc) > 0.6) ok = false; }
+    if (!ok) continue;
+    const [wx, wz] = cellToWorld(map, x, z);
+    if (raw.some((b) => b.min[1] < hc + 1.8 && b.max[1] > hc + 0.3 && wx > b.min[0] - 0.6 && wx < b.max[0] + 0.6 && wz > b.min[2] - 0.6 && wz < b.max[2] + 0.6)) continue;
+    out.push([x, z]);
+  }
+  return out;
+}
+
+// Farthest-Point-Sampling: möglichst gleichmäßig verteilte Auswahl
+function spread(cells, n, map) {
+  if (cells.length <= n) return cells.slice();
+  const cx = map.w / 2, cz = map.h / 2;
+  let first = cells[0], bd = Infinity;
+  for (const c of cells) { const d = Math.hypot(c[0] - cx, c[1] - cz); if (d < bd) { bd = d; first = c; } }
+  const out = [first];
+  const dist = cells.map((c) => Math.hypot(c[0] - first[0], c[1] - first[1]));
+  while (out.length < n) {
+    let bi = 0;
+    for (let i = 1; i < cells.length; i++) if (dist[i] > dist[bi]) bi = i;
+    const p = cells[bi];
+    out.push(p);
+    for (let i = 0; i < cells.length; i++) dist[i] = Math.min(dist[i], Math.hypot(cells[i][0] - p[0], cells[i][1] - p[1]));
+  }
+  return out;
 }
 
 export function heightAt(map, cx, cz) {

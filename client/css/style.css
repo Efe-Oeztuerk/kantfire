@@ -306,3 +306,23 @@ button.ghost:hover { background: #ffffff10; }
 
 .crate-card .open { grid-column: 1 / -1; margin-top: 6px; }
 .hero { height: 100vh; min-height: 0; overflow: hidden; }
+
+/* ---------- Admin-Panel ---------- */
+.adm-bg { z-index: 90; }
+.adm { width: 640px; display: flex; flex-direction: column; gap: 10px; border-color: #ff6a2a66; }
+.adm h2 { margin: 0; }
+.adm h4 { margin: 4px 0 6px; }
+.adm .wrap { flex-wrap: wrap; gap: 6px; }
+.adm-tabs { gap: 6px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.adm-tabs button.on { background: var(--accent, #ff6a2a); color: #111; }
+.adm-card { background: #ffffff08; border-radius: 10px; padding: 10px 12px; gap: 12px; align-items: center; }
+.adm-stats { display: flex; flex-wrap: wrap; gap: 6px; }
+.adm-stats span { background: #ffffff10; border-radius: 6px; padding: 3px 8px; font-size: 13px; }
+.adm-stats.big span { font-size: 15px; padding: 6px 10px; }
+.adm-sec { border-top: 1px solid var(--line); padding-top: 6px; }
+.adm-ban { background: #e0303a; color: #fff; font-size: 11px; font-weight: 700; border-radius: 4px; padding: 1px 6px; margin-left: 6px; }
+.adm-list { max-height: 260px; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+.adm-rep { background: #ffffff08; border-radius: 8px; padding: 8px 10px; align-items: center; gap: 8px; }
+.adm-msg { min-height: 18px; font-size: 13px; }
+.adm-msg.ok { color: #4cd964; } .adm-msg.err { color: #ff5a5a; }
+.adm button.danger { background: #8a1f25; }

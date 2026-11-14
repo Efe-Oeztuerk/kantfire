@@ -7,6 +7,7 @@ import { Menu, toast } from './ui/menu.js';
 import { Game } from './game/game.js';
 import { audio } from './game/audio.js';
 import { MODES } from '/shared/constants.js';
+import { installAdminTrigger } from './ui/admin.js';
 
 class App {
   constructor() {
@@ -20,6 +21,7 @@ class App {
     document.getElementById('gameRoot').append(this.renderer.domElement);
     this.renderer.domElement.style.display = 'none';
     this.wire();
+    installAdminTrigger(this);
   }
 
   async boot() {
@@ -54,6 +56,7 @@ class App {
     n.on('friendUpdate', () => { if (!this.game && this.menu.page === 'friends') this.menu.show('friends'); });
     n.on('presence', () => { if (!this.game && this.menu.page === 'friends') this.menu.show('friends'); });
     n.on('authFail', () => { setToken(null); this.net.close(); this.menu.showAuth(); });
+    n.on('profileUpdate', (m) => { toast(`🎁 ${m.text}`); this.refreshProfile().then(() => { if (!this.game) this.menu.refreshChrome(); }).catch(() => {}); });
     n.on('kicked', (m) => { toast(m.reason); this.net.close(); });
     n.on('roomClosed', () => { if (this.game && !this.game.hud.ended) { toast('Der Server wurde geschlossen.'); this.game.dispose(); this.backToMenu(); } });
     n.on('close', () => { if (!this.game) document.title = 'KANTFIRE (verbinde neu …)'; });

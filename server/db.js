@@ -144,6 +144,7 @@ export function newSession(userId) {
 export function sessionUser(token) {
   const s = token && data.sessions[token];
   if (!s) return null;
+  if (data.users[s.userId]?.banned) return null;
   if (Date.now() - s.created > 1000 * 60 * 60 * 24 * 30) { delete data.sessions[token]; markDirty(); return null; }
   return getUser(s.userId);
 }
@@ -155,3 +156,6 @@ export function addMatch(m) {
   markDirty();
 }
 export function addReport(r) { data.reports.push(r); markDirty(); }
+export const getReports = () => data.reports;
+export function clearReports() { data.reports = []; markDirty(); }
+export function dropUserSessions(uid) { for (const [t, s] of Object.entries(data.sessions)) if (s.userId === uid) delete data.sessions[t]; markDirty(); }

@@ -58,7 +58,7 @@ export class Room {
   info() {
     return {
       id: this.id, name: this.name, mode: this.modeId, map: this.mapId, players: this.humans().length, bots: this.players.size - this.humans().length,
-      max: this.max, region: CONFIG.server.region, locked: !!this.password, status: this.status, ranked: this.ranked, private: this.isPrivate,
+      max: this.max, botDiff: this.botDifficulty, region: CONFIG.server.region, locked: !!this.password, status: this.status, ranked: this.ranked, private: this.isPrivate,
     };
   }
 
@@ -121,6 +121,12 @@ export class Room {
     this.mode.onJoin(p);
     this.rosterDirty = true;
     return p;
+  }
+
+  setBotDifficulty(v) {
+    this.botDifficulty = Math.max(0.05, Math.min(1, Number(v) || 0.4));
+    for (const p of this.players.values()) if (p.bot) p.bot.diff = this.botDifficulty;
+    this.rosterDirty = true;
   }
 
   fillWithBots() {
@@ -409,17 +415,26 @@ export class Room {
   }
 
   // ---------------------------------------------------------------- Spawns
+  // Zufällige Auswahl unter den sicheren Punkten (weit weg von Gegnern, nicht belegt, nicht der letzte Punkt)
   pickSpawn(p, list) {
+    if (!list?.length) return [0, 0, 0];
     const enemies = [...this.players.values()].filter((q) => q !== p && q.alive && (!this.mode.teamBased || q.team !== p.team));
     const others = [...this.players.values()].filter((q) => q !== p && q.alive);
     const scored = list.map((s) => {
       let minE = 999;
       for (const e of enemies) minE = Math.min(minE, Math.hypot(e.st.x - s[0], e.st.z - s[2]));
-      let crowd = 0;
-      for (const o of others) if (Math.hypot(o.st.x - s[0], o.st.z - s[2]) < 1.2) crowd++;
-      return { s, score: minE - crowd * 100 + Math.random() * 6 };
-    }).sort((a, b) => b.score - a.score);
-    return scored[0]?.s || [0, 0, 0];
+      const occupied = others.some((o) => Math.hypot(o.st.x - s[0], o.st.z - s[2]) < 1.6);
+      const same = p.lastSpawn && Math.hypot(p.lastSpawn[0] - s[0], p.lastSpawn[2] - s[2]) < 3;
+      return { s, minE, bad: occupied || same };
+    }).filter((x) => !x.bad);
+    const pool = scored.length ? scored : list.map((s) => ({ s, minE: 999 }));
+    pool.sort((a, b) => b.minE - a.minE);
+    // sichere Hälfte (mind. 12 m zum nächsten Gegner, wenn möglich), daraus zufällig
+    const safe = pool.filter((x) => x.minE >= 12);
+    const cand = (safe.length ? safe : pool).slice(0, Math.max(3, Math.ceil((safe.length || pool.length) * 0.6)));
+    const pick = cand[Math.floor(Math.random() * cand.length)].s;
+    p.lastSpawn = pick;
+    return pick;
   }
 
   place(p, pos, yawToward) {

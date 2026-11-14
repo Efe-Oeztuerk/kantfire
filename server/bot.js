@@ -8,7 +8,7 @@ import { inRect } from '../shared/maps.js';
 
 export class Bot {
   constructor(p, room, diff = 0.5) {
-    this.p = p; this.room = room; this.diff = clamp(diff, 0.1, 1);
+    this.p = p; this.room = room; this.diff = clamp(diff, 0.05, 1);
     this.seq = 0;
     this.target = null; this.seenAt = 0; this.acquiredAt = 0; this.err = [0, 0];
     this.path = null; this.pi = 0; this.goal = null; this.repathAt = 0;
@@ -53,7 +53,7 @@ export class Bot {
       let best = null, bd = Infinity;
       for (const e of this.enemies()) {
         const d = Math.hypot(e.st.x - p.st.x, e.st.z - p.st.z);
-        if (d > 90 || d > bd) continue;
+        if (d > 30 + 60 * this.diff || d > bd) continue;
         const head = [e.st.x, e.st.y + (e.st.c ? 1.05 : 1.55), e.st.z];
         // Sichtfeld: hinter sich sehen Bots nur nahe Gegner
         const yawTo = Math.atan2(-(e.st.x - p.st.x), -(e.st.z - p.st.z));
@@ -62,7 +62,7 @@ export class Bot {
       }
       if (best && best !== this.target) {
         this.acquiredAt = t;
-        const e = 0.25 * (1.1 - this.diff);
+        const e = 0.38 * (1.1 - this.diff);
         this.err = [(Math.random() - 0.5) * e, (Math.random() - 0.5) * e * 0.6];
       }
       if (best) { this.seenAt = t; this.lastKnown = [best.st.x, best.st.y, best.st.z]; }
@@ -93,22 +93,26 @@ export class Bot {
     // Zielen
     let wantYaw = p.yaw, wantPitch = 0;
     if (tgt) {
-      const aimY = tgt.st.y + (this.diff > 0.6 && Math.random() < 0.6 ? (tgt.st.c ? 1.0 : 1.5) : (tgt.st.c ? 0.8 : 1.15));
+      const aimHead = this.diff > 0.5 && Math.random() < this.diff - 0.3;
+      const aimY = tgt.st.y + (aimHead ? (tgt.st.c ? 1.0 : 1.5) : (tgt.st.c ? 0.8 : 1.15));
       const dx = tgt.st.x - eye[0], dy = aimY - eye[1], dz = tgt.st.z - eye[2];
-      wantYaw = Math.atan2(-dx, -dz) + this.err[0];
-      wantPitch = Math.atan2(dy, Math.hypot(dx, dz)) + this.err[1];
-      this.err[0] *= 0.93; this.err[1] *= 0.93;
+      // schwächere Bots: langsameres Einregeln und zittriges Zielen
+      const wob = (1 - this.diff) * 0.035;
+      wantYaw = Math.atan2(-dx, -dz) + this.err[0] + (Math.random() - 0.5) * wob;
+      wantPitch = Math.atan2(dy, Math.hypot(dx, dz)) + this.err[1] + (Math.random() - 0.5) * wob * 0.6;
+      const decay = 0.975 - this.diff * 0.07;
+      this.err[0] *= decay; this.err[1] *= decay;
     } else if (this.path && this.path[this.pi]) {
       const n = this.path[this.pi];
       wantYaw = Math.atan2(-(n[0] - p.st.x), -(n[2] - p.st.z));
     }
-    const maxTurn = (2.5 + 9 * this.diff) / 30;
+    const maxTurn = (1.5 + 9 * this.diff) / 30;
     p.yaw = p.yaw + clamp(angleDiff(p.yaw, wantYaw), -maxTurn, maxTurn);
     inp.y = p.yaw;
     inp.p = p.pitch + clamp(wantPitch - p.pitch, -maxTurn, maxTurn);
 
     // Schießen
-    if (tgt && w && t - this.acquiredAt > 0.55 - this.diff * 0.35) {
+    if (tgt && w && t - this.acquiredAt > 0.75 - this.diff * 0.55) {
       const d = Math.hypot(tgt.st.x - p.st.x, tgt.st.z - p.st.z);
       const err = Math.abs(angleDiff(inp.y, wantYaw - this.err[0])) + Math.abs(inp.p - (wantPitch - this.err[1]));
       const tol = Math.atan(0.45 / Math.max(d, 1)) + 0.015;
@@ -119,7 +123,7 @@ export class Bot {
       } else if (err < tol && t >= this.pauseUntil && (!w.melee || d < 2.2)) {
         if (w.auto) {
           inp.k |= KEY.FIRE;
-          if (d > 18 && ++this.burst > 4) { this.burst = 0; this.pauseUntil = t + 0.35; }
+          if ((d > 18 || this.diff < 0.4) && ++this.burst > 3 + Math.round(this.diff * 5)) { this.burst = 0; this.pauseUntil = t + 0.25 + (1 - this.diff) * 0.4; }
         } else {
           this.fireToggle = !this.fireToggle;
           if (this.fireToggle) inp.k |= KEY.FIRE;

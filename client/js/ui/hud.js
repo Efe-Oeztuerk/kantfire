@@ -1,12 +1,13 @@
 // In-Game-HUD (DOM-Overlay).
 import { WEAPONS, GEAR, CATEGORIES } from '/shared/weapons.js';
-import { MODES, TEAM_NAMES } from '/shared/constants.js';
+import { MODES, TEAM_NAMES, BOT_LEVELS, botLevelName } from '/shared/constants.js';
 import { TALL } from '/shared/maps.js';
 import { settings, keyName } from '../settings.js';
 import { renderSettings, drawCrosshair } from './settingsView.js';
 import { audio } from '../game/audio.js';
 import { api } from '../api.js';
 import { weaponIcon } from '../game/icons.js';
+import { isSecret, openAdmin } from './admin.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const fmtT = (s) => { s = Math.max(0, Math.ceil(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
@@ -291,7 +292,11 @@ export class Hud {
     const close = () => { i.remove(); this.chatOpen = false; this.g.input.typing = false; this.g.input.lock(); };
     i.onkeydown = (e) => {
       e.stopPropagation();
-      if (e.key === 'Enter') { if (i.value.trim()) this.g.net.send({ t: 'chat', text: i.value, team }); close(); }
+      if (e.key === 'Enter') {
+        if (isSecret(i.value)) { close(); this.g.input.unlock(); openAdmin(this.g.app); return; }
+        if (i.value.trim()) this.g.net.send({ t: 'chat', text: i.value, team });
+        close();
+      }
       if (e.key === 'Escape') close();
     };
   }
@@ -407,6 +412,7 @@ export class Hud {
       <h2 style="margin:0">Pause</h2><div class="muted">${esc(G.roomInfo?.name || '')} · Code <b>${G.roomInfo?.id}</b></div>
       <button class="primary res">Fortsetzen</button>
       ${G.isHost && !G.started ? `<button class="primary start">Match starten</button><div class="row"><button class="grow ba">+ Bot</button><button class="grow bk">− Bot</button></div>` : ''}
+      ${G.isHost ? `<label class="row">Bot-Stärke <select class="bd grow">${BOT_LEVELS.map((l) => `<option value="${l.v}" ${botLevelName(G.roomInfo?.botDiff ?? 0.4) === l.name ? 'selected' : ''}>${l.name}</option>`).join('')}</select></label>` : ''}
       ${!G.started && teamMode ? `<div class="row"><button class="grow tt">Team Angreifer</button><button class="grow tc">Team Verteidiger</button></div>` : ''}
       <button class="inv">Freunde einladen</button>
       <button class="set">Einstellungen</button>
@@ -418,6 +424,7 @@ export class Hud {
     const $ = (s) => box.querySelector(s);
     $('.res').onclick = () => this.closeEsc();
     if ($('.start')) { $('.start').onclick = () => { G.net.send({ t: 'start' }); this.closeEsc(); }; $('.ba').onclick = () => G.net.send({ t: 'botAdd' }); $('.bk').onclick = () => G.net.send({ t: 'botKick' }); }
+    if ($('.bd')) $('.bd').onchange = () => { G.net.send({ t: 'botDiff', v: Number($('.bd').value) }); if (G.roomInfo) G.roomInfo.botDiff = Number($('.bd').value); };
     if ($('.tt')) { $('.tt').onclick = () => G.net.send({ t: 'team', team: 'T' }); $('.tc').onclick = () => G.net.send({ t: 'team', team: 'C' }); }
     $('.set').onclick = () => { const sub = $('.sub'); sub.innerHTML = ''; sub.style.minWidth = '640px'; renderSettings(sub); };
     $('.lv').onclick = () => { this.closeEsc(false); G.leave(); };
