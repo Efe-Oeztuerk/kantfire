@@ -40,6 +40,8 @@ export const ITEMS = [
   I('outfit', 'o_night', 'Nachtschicht', 'rare', { torso: 0x1c2233, legs: 0x0d1018 }),
   I('outfit', 'o_royal', 'Königlich', 'epic', { torso: 0x6a1fb5, legs: 0x221040 }),
   I('outfit', 'o_chrome', 'Chrom', 'legendary', { torso: 0xd8dde3, legs: 0x8a9099 }),
+  // Nur für Admins: Fußballtrikot in Rot-Gelb (geteilt), Nummer 10, Stutzen und Fußballschuhe
+  I('outfit', 'o_admin', 'Löwen-Trikot (Admin)', 'legendary', { torso: 0xa90432, legs: 0xa90432, src: 'admin', kit: { a: 0xa90432, b: 0xfdb912, shorts: 0xa90432, sock: 0xa90432, sockB: 0xfdb912, boot: 0x111111, num: '10' } }),
   // Gesichter/Köpfe
   I('face', 'h_smile', 'Lächeln', 'common', { skin: 0xf2c79b, face: 'smile' }),
   I('face', 'h_serious', 'Ernst', 'common', { skin: 0xd9a77a, face: 'serious' }),
@@ -100,7 +102,7 @@ export const LEVEL_UNLOCKS = {
 
 export function shopPrice(item) { return RARITIES[item.rarity].price; }
 export const inShop = (i) => !i.src;
-export const inCrates = (i) => i.src !== 'bp';
+export const inCrates = (i) => !i.src || i.src === 'crate';
 
 // Truhen: Gewichte je Seltenheit (in %). Werden im Menü offen angezeigt.
 export const CRATES = {

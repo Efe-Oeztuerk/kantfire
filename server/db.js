@@ -15,7 +15,7 @@ const SB_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 const SB_TABLE = process.env.SUPABASE_TABLE || 'kf_data';
 export const backend = SB_URL && SB_KEY ? 'supabase' : 'file';
 
-let data = { users: {}, names: {}, sessions: {}, matches: [], reports: [], nextId: 1 };
+let data = { users: {}, names: {}, sessions: {}, matches: [], reports: [], event: null, nextId: 1 };
 let dirty = false;
 const saved = new Map(); // Zeilen-ID -> zuletzt gespeicherter Inhalt
 let flushing = false;
@@ -23,7 +23,7 @@ let flushing = false;
 function rows() {
   const out = [];
   for (const u of Object.values(data.users)) out.push(['u:' + u.id, u]);
-  out.push(['meta', { names: data.names, matches: data.matches, reports: data.reports, nextId: data.nextId }]);
+  out.push(['meta', { names: data.names, matches: data.matches, reports: data.reports, event: data.event, nextId: data.nextId }]);
   out.push(['sessions', data.sessions]);
   return out;
 }
@@ -144,7 +144,7 @@ export function newSession(userId) {
 export function sessionUser(token) {
   const s = token && data.sessions[token];
   if (!s) return null;
-  if (data.users[s.userId]?.banned) return null;
+  if (isBanned(data.users[s.userId])) return null;
   if (Date.now() - s.created > 1000 * 60 * 60 * 24 * 30) { delete data.sessions[token]; markDirty(); return null; }
   return getUser(s.userId);
 }
@@ -158,4 +158,30 @@ export function addMatch(m) {
 export function addReport(r) { data.reports.push(r); markDirty(); }
 export const getReports = () => data.reports;
 export function clearReports() { data.reports = []; markDirty(); }
+// Sperre (dauerhaft oder bis bannedUntil). Abgelaufene Sperren werden automatisch aufgehoben.
+export function isBanned(u) {
+  if (!u?.banned) return false;
+  if (u.bannedUntil && Date.now() >= u.bannedUntil) { u.banned = false; u.bannedUntil = 0; u.banReason = ''; markDirty(); return false; }
+  return true;
+}
+export function renameUser(u, newName) {
+  delete data.names[u.name.toLowerCase()];
+  u.name = newName;
+  data.names[newName.toLowerCase()] = u.id;
+  markDirty();
+}
+// Fortschritt zurücksetzen (Name, Passwort, Freunde und Einstellungen bleiben)
+export function resetUser(u) {
+  for (const k of ['stats', 'modeStats', 'ratings', 'inventory', 'loadout', 'crates', 'bp', 'history', 'challenges', 'coins', 'xp']) delete u[k];
+  migrateUser(u);
+  markDirty();
+}
+export function addNotice(u, text) { (u.notices ||= []).push(String(text).slice(0, 200)); if (u.notices.length > 20) u.notices.shift(); markDirty(); }
+export function takeNotices(u) { const n = u.notices || []; if (n.length) { u.notices = []; markDirty(); } return n; }
+// Doppel-XP/-Münzen-Event
+export function getEvent() {
+  if (data.event && Date.now() >= data.event.until) { data.event = null; markDirty(); }
+  return data.event;
+}
+export function setEvent(ev) { data.event = ev; markDirty(); }
 export function dropUserSessions(uid) { for (const [t, s] of Object.entries(data.sessions)) if (s.userId === uid) delete data.sessions[t]; markDirty(); }

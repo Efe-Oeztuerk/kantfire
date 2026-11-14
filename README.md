@@ -68,7 +68,7 @@ Im Stand treffen Schüsse fast genau den Zielpunkt (Streuung ×0,45). Beim Laufe
 - Spawnpunkte werden pro Map automatisch verteilt: In Teammodi startet jedes Team auf seiner eigenen Kartenseite, in Jeder-gegen-jeden-Modi möglichst weit weg von Gegnern und nie zweimal hintereinander am selben Punkt.
 
 ### Admin-Werkzeuge
-Ein verstecktes Admin-Panel (Münzen, Truhen, XP/Battlepass, Items, Sperren, Kicken, Meldungen, Übersicht, Ansagen). Wer Admin ist, legt ausschließlich der Server über `ADMIN_USERS` fest. Jede Aktion steht im Log (`[admin]`). Gesperrte Accounts können sich nicht mehr anmelden.
+Ein verstecktes Admin-Panel: Münzen, Truhen, XP/Battlepass, Items, Sperren (befristet oder dauerhaft), Kicken, Umbenennen, Fortschritt zurücksetzen, Bonus-Events (z. B. Doppel-XP-Wochenende), Geschenke an alle Accounts, Meldungen, Übersicht und Ansagen. Admins tragen automatisch das exklusive rot-gelbe Fußballtrikot (Nr. 10) und haben einen goldenen Namen mit 👑. Wer Admin ist, legt ausschließlich der Server über `ADMIN_USERS` fest. Jede Aktion steht im Log (`[admin]`). Gesperrte Accounts können sich nicht mehr anmelden.
 
 ## 3. Architektur
 

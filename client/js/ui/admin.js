@@ -63,7 +63,7 @@ export async function openAdmin(app) {
   bg.innerHTML = `<div class="modal adm">
     <div class="row adm-head"><h2 class="grow">🛠️ Admin-Panel</h2><button class="x">✕</button></div>
     <div class="row adm-acc"><input class="nm grow" placeholder="Accountname eingeben …" maxlength="16" autocomplete="off"><button class="primary ld">Laden</button></div>
-    <div class="adm-tabs row"><button data-tab="acc" class="on">Account</button><button data-tab="rep">Meldungen</button><button data-tab="ov">Übersicht</button><button data-tab="ann">Ansage</button></div>
+    <div class="adm-tabs row"><button data-tab="acc" class="on">Account</button><button data-tab="rep">Meldungen</button><button data-tab="ov">Übersicht</button><button data-tab="ev">Events & Geschenke</button><button data-tab="ann">Ansage</button></div>
     <div class="adm-body"></div>
   </div>`;
   document.getElementById('overlay').append(bg);
@@ -117,10 +117,20 @@ export async function openAdmin(app) {
         <div class="adm-sec"><h4>🎨 Skins & Items</h4><div class="row wrap">
           <select class="it grow">${itemOpts}</select><button class="primary ig">Geben</button><button class="ua">Alles freischalten</button></div></div>
         <div class="adm-sec"><h4>🚫 Sperren</h4><div class="row wrap">
-          ${u.banned ? `<span class="muted grow">Grund: ${esc(u.banReason)}</span><button class="primary unb">Entsperren</button>`
-            : `<input class="br grow" placeholder="Grund (z. B. Cheating)" maxlength="120"><button class="danger bn">Sperren</button>`}
+          ${u.banned ? `<span class="muted grow">${u.bannedUntil ? 'bis ' + new Date(u.bannedUntil).toLocaleString('de') : 'dauerhaft'} · Grund: ${esc(u.banReason)}</span><button class="primary unb">Entsperren</button>`
+            : `<input class="br grow" placeholder="Grund (z. B. Cheating)" maxlength="120">
+               <select class="bh"><option value="1">1 Stunde</option><option value="24" selected>24 Stunden</option><option value="72">3 Tage</option><option value="168">7 Tage</option><option value="720">30 Tage</option><option value="0">Dauerhaft</option></select>
+               <button class="danger bn">Sperren</button>`}
           ${u.online && u.status === 'Im Spiel' ? '<button class="kk">Aus Match kicken</button>' : ''}</div></div>
+        <div class="adm-sec"><h4>✏️ Account</h4><div class="row wrap">
+          <input class="rn" placeholder="Neuer Name" maxlength="16" style="width:160px"><button class="rnb">Umbenennen</button>
+          <span class="grow"></span><button class="danger rs">Fortschritt zurücksetzen …</button></div></div>
         <div class="adm-msg"></div>`;
+      body.querySelector('.rnb').onclick = async () => { const r = await call('/rename', { name: u.name, newName: body.querySelector('.rn').value.trim() }); if (r) { $('.nm').value = r.user.name; await afterChange(r, 'Umbenannt'); } };
+      body.querySelector('.rs').onclick = async () => {
+        const c = prompt(`Wirklich ALLES von ${u.name} zurücksetzen (Level, Münzen, Items, Statistiken)?\nZum Bestätigen den Namen eintippen:`);
+        if (c) afterChange(await call('/resetAccount', { name: u.name, confirm: c }), 'Account zurückgesetzt');
+      };
       const grant = async (b, text) => afterChange(await call('/grant', { name: u.name, ...b }), text);
       body.querySelectorAll('.q').forEach((b) => b.onclick = () => grant({ coins: +b.dataset.c }, `+${b.dataset.c} Münzen`));
       body.querySelector('.cg').onclick = () => { const n = Math.trunc(+body.querySelector('.cn').value); if (n) grant({ coins: n }, `${n} Münzen`); };
@@ -132,7 +142,7 @@ export async function openAdmin(app) {
       body.querySelector('.ig').onclick = () => grant({ items: [body.querySelector('.it').value] }, 'Item gegeben');
       body.querySelector('.ua').onclick = () => grant({ unlockAll: true }, 'Alles freigeschaltet');
       body.querySelector('.bn')?.addEventListener('click', async () => {
-        const r = await call('/ban', { name: u.name, ban: true, reason: body.querySelector('.br').value || 'Regelverstoß' });
+        const r = await call('/ban', { name: u.name, ban: true, hours: +body.querySelector('.bh').value, reason: body.querySelector('.br').value || 'Regelverstoß' });
         if (r) { user = r.user; render(); msg(`✓ ${u.name} gesperrt`); }
       });
       body.querySelector('.unb')?.addEventListener('click', async () => { const r = await call('/ban', { name: u.name, ban: false }); if (r) { user = r.user; render(); msg(`✓ ${u.name} entsperrt`); } });
@@ -154,6 +164,33 @@ export async function openAdmin(app) {
         <h4>Online</h4><div class="adm-list">${o.online.map((p) => `<div class="adm-rep row"><span class="grow"><b>${esc(p.name)}</b> <span class="muted">Lv ${p.level} · ${esc(p.status)}</span></span><button class="op" data-n="${esc(p.name)}">Öffnen</button></div>`).join('') || '<p class="muted">Niemand online.</p>'}</div>
         <h4>Laufende Server</h4><div class="adm-list">${o.rooms.map((r) => `<div class="adm-rep">${esc(r.name)} <span class="muted">· ${esc(MODES[r.mode]?.name || r.mode)} · ${esc(r.map)} · ${r.players}/${r.max}${r.private ? ' · privat' : ''}</span></div>`).join('') || '<p class="muted">Keine.</p>'}</div>`;
       body.querySelectorAll('.op').forEach((b) => b.onclick = () => { $('.nm').value = b.dataset.n; load(); });
+    } else if (tab === 'ev') {
+      const { event } = await call('/event') || {};
+      const opt = (v) => [1, 1.5, 2, 3].map((x) => `<option value="${x}" ${x === v ? 'selected' : ''}>×${x}</option>`).join('');
+      body.innerHTML = `<div class="adm-sec" style="border:0"><h4>🔥 Bonus-Event für alle</h4>
+          ${event ? `<p>Läuft: <b>${esc(event.name)}</b> · XP ×${event.xp} · Münzen ×${event.coins} · bis ${new Date(event.until).toLocaleString('de')}</p>` : '<p class="muted">Gerade kein Event aktiv.</p>'}
+          <div class="row wrap"><input class="evn" placeholder="Name" value="Doppel-XP-Wochenende" maxlength="40" style="width:200px">
+          <span class="muted">XP</span><select class="evx">${opt(2)}</select><span class="muted">Münzen</span><select class="evc">${opt(2)}</select>
+          <select class="evh"><option value="2">2 Stunden</option><option value="24">24 Stunden</option><option value="48" selected>48 Stunden (Wochenende)</option><option value="168">7 Tage</option></select>
+          <button class="primary evs">Starten</button>${event ? '<button class="danger eve">Beenden</button>' : ''}</div></div>
+        <div class="adm-sec"><h4>🎁 Geschenk an ALLE Accounts</h4><p class="muted">Online-Spieler sehen es sofort, alle anderen beim nächsten Login.</p>
+          <div class="row wrap"><input type="number" class="gc" placeholder="Münzen" style="width:110px">
+          <select class="gk"><option value="">keine Truhe</option>${Object.entries(CRATES).map(([id, c]) => `<option value="${id}">${esc(c.name)}</option>`).join('')}</select>
+          <input type="number" class="gn" value="1" min="1" max="100" style="width:60px">
+          <select class="gi"><option value="">kein Item</option>${itemOpts}</select></div>
+          <div class="row" style="margin-top:6px"><input class="gm grow" placeholder="Nachricht (optional), z. B. Danke fürs Spielen!" maxlength="100"><button class="primary gs">Verschenken</button></div></div>
+        <div class="adm-msg"></div>`;
+      body.querySelector('.evs').onclick = async () => {
+        const r = await call('/event', { name: body.querySelector('.evn').value, xp: +body.querySelector('.evx').value, coins: +body.querySelector('.evc').value, hours: +body.querySelector('.evh').value });
+        if (r) { await render(); msg('✓ Event gestartet'); app.refreshProfile().then(() => app.menu.refreshChrome?.()).catch(() => {}); }
+      };
+      body.querySelector('.eve')?.addEventListener('click', async () => { if (await call('/event', { hours: 0 })) { await render(); msg('✓ Event beendet'); app.refreshProfile().then(() => app.menu.refreshChrome?.()).catch(() => {}); } });
+      body.querySelector('.gs').onclick = async () => {
+        const b = { coins: +body.querySelector('.gc').value || 0, crate: body.querySelector('.gk').value, crateN: +body.querySelector('.gn').value || 1, item: body.querySelector('.gi').value, message: body.querySelector('.gm').value };
+        if (!confirm('Wirklich an ALLE Accounts verschenken?')) return;
+        const r = await call('/giftAll', b);
+        if (r) msg(`✓ An ${r.count} Accounts verschenkt`);
+      };
     } else if (tab === 'ann') {
       body.innerHTML = `<p class="muted">Schickt eine Nachricht an alle, die gerade online sind (Popup im Menü + Chat in allen Matches).</p>
         <div class="row"><input class="an grow" maxlength="200" placeholder="z. B. Server-Neustart in 5 Minuten!"><button class="primary as">Senden</button></div><div class="adm-msg"></div>`;

@@ -54,13 +54,43 @@ export function makeCharacter(loadout = {}, team = 'N', zombie = false) {
   const legMat = mat(legsC), torsoMat = mat(torsoC), skinMat = mat(skin), gloveMat = mat(gloves.color);
   const hipY = 0.8;
   const mkLimb = (w, h, m, x, y) => { const pivot = new THREE.Group(); pivot.position.set(x, y, 0); pivot.add(box(w, h, w, m, 0, -h / 2, 0)); return pivot; };
-  const legL = mkLimb(0.27, 0.8, legMat, -0.15, hipY), legR = mkLimb(0.27, 0.8, legMat, 0.15, hipY);
-  body.add(legL, legR);
-  const torso = box(0.62, 0.66, 0.32, torsoMat, 0, hipY + 0.33, 0);
+  const kit = !zombie && outfit.kit;
+  let legL, legR, torso;
+  if (kit) {
+    // Fußballtrikot: Hose, gestreifte Stutzen, Schuhe; Trikot halb/halb mit Rückennummer
+    const mkLeg = (x) => {
+      const pivot = new THREE.Group(); pivot.position.set(x, hipY, 0);
+      pivot.add(box(0.29, 0.3, 0.29, mat(kit.shorts), 0, -0.15, 0));
+      pivot.add(box(0.27, 0.06, 0.27, skinMat, 0, -0.33, 0));
+      for (let i = 0; i < 4; i++) pivot.add(box(0.275, 0.09, 0.275, mat(i % 2 ? kit.sockB : kit.sock), 0, -0.41 - i * 0.09, 0));
+      pivot.add(box(0.29, 0.1, 0.36, mat(kit.boot), 0, -0.75, -0.04));
+      return pivot;
+    };
+    legL = mkLeg(-0.15); legR = mkLeg(0.15);
+    body.add(legL, legR);
+    torso = new THREE.Group(); torso.position.set(0, hipY + 0.33, 0);
+    torso.add(box(0.31, 0.66, 0.32, mat(kit.a), -0.155, 0, 0), box(0.31, 0.66, 0.32, mat(kit.b), 0.155, 0, 0));
+    torso.add(box(0.3, 0.05, 0.33, mat(0xffffff), 0, 0.31, 0)); // Kragen
+    const num = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.4), new THREE.MeshLambertMaterial({ map: kitNumber(kit.num), transparent: true }));
+    num.position.set(0, 0.04, 0.162); torso.add(num); // Rücken (+z)
+    const front = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.16), new THREE.MeshLambertMaterial({ map: kitNumber(kit.num), transparent: true }));
+    front.position.set(0.15, 0.16, -0.162); front.rotation.y = Math.PI; torso.add(front);
+  } else {
+    legL = mkLimb(0.27, 0.8, legMat, -0.15, hipY); legR = mkLimb(0.27, 0.8, legMat, 0.15, hipY);
+    body.add(legL, legR);
+    torso = box(0.62, 0.66, 0.32, torsoMat, 0, hipY + 0.33, 0);
+  }
   body.add(torso);
   // Teamband
   const band = box(0.25, 0.08, 0.25, mat(TEAM_COLOR[team] || 0xdddddd, { emissive: TEAM_COLOR[team] || 0, emissiveIntensity: 0.35 }), 0, -0.12, 0);
-  const armL = mkLimb(0.24, 0.62, torsoMat, -0.43, hipY + 0.62), armR = mkLimb(0.24, 0.62, torsoMat, 0.43, hipY + 0.62);
+  const mkArm = (x, sleeve) => {
+    if (!kit) return mkLimb(0.24, 0.62, torsoMat, x, hipY + 0.62);
+    const pivot = new THREE.Group(); pivot.position.set(x, hipY + 0.62, 0);
+    pivot.add(box(0.25, 0.26, 0.25, mat(sleeve), 0, -0.13, 0)); // kurzer Ärmel
+    pivot.add(box(0.22, 0.36, 0.22, skinMat, 0, -0.44, 0));
+    return pivot;
+  };
+  const armL = mkArm(-0.43, kit?.a), armR = mkArm(0.43, kit?.b);
   armL.children[0].add(band);
   armL.add(box(0.25, 0.14, 0.25, gloveMat, 0, -0.62, 0)); armR.add(box(0.25, 0.14, 0.25, gloveMat, 0, -0.62, 0));
   body.add(armL, armR);
@@ -76,6 +106,19 @@ export function makeCharacter(loadout = {}, team = 'N', zombie = false) {
   armR.add(gunHolder);
   root.userData = { body, legL, legR, armL, armR, head, torso, gunHolder, phase: 0, gunId: null, deadT: 0, zombie };
   return root;
+}
+
+const numCache = new Map();
+function kitNumber(n) {
+  if (numCache.has(n)) return numCache.get(n);
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+  const g = cv.getContext('2d');
+  g.font = 'bold 44px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.lineWidth = 6; g.strokeStyle = '#7a0020'; g.strokeText(n, 32, 34);
+  g.fillStyle = '#ffffff'; g.fillText(n, 32, 34);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+  numCache.set(n, t);
+  return t;
 }
 
 function addHat(head, hat) {

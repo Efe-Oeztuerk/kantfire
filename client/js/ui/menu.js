@@ -39,6 +39,7 @@ function modal(html, cls = '') {
 }
 function swatch(i, weapon = 'kr47') {
   if (i.type === 'finish') return `<img class="sw-img" src="${weaponIcon(weapon, i.id)}">`;
+  if (i.type === 'outfit' && i.kit) return `<div class="sw" style="background:linear-gradient(90deg, ${hex(i.kit.a)} 50%, ${hex(i.kit.b)} 50%)"></div>`;
   if (i.type === 'outfit') return `<div class="sw" style="background:linear-gradient(${hex(i.torso)} 55%, ${hex(i.legs)} 55%)"></div>`;
   if (i.type === 'face') return `<div class="sw sw-face" style="background:${hex(i.skin)}">${{ smile: '🙂', serious: '😐', shades: '😎', angry: '😠', mask: '🥷', robot: '🤖', skull: '💀' }[i.face] || '🙂'}</div>`;
   if (i.type === 'emote') return `<div class="sw sw-emote">${EMOTE_ICON[i.anim] || '✨'}</div>`;
@@ -126,9 +127,10 @@ export class Menu {
     const lvl = p.level;
     const tier = bpTier(p.bp?.xp || 0);
     this.el.querySelector('.me-card').innerHTML = `<div class="row"><div class="avatar" style="background:${avatarColor(p.name)}">${esc(p.name[0].toUpperCase())}</div>
-      <div class="grow"><b>${esc(p.name)}</b><div class="muted" style="font-size:12px">Level ${lvl.level}</div></div><button class="lo ghost" title="Abmelden">⎋</button></div>
+      <div class="grow"><b ${p.admin ? 'class="adm-name"' : ''}>${p.admin ? '👑 ' : ''}${esc(p.name)}</b><div class="muted" style="font-size:12px">Level ${lvl.level}</div></div><button class="lo ghost" title="Abmelden">⎋</button></div>
       <div class="xpbar"><div style="width:${Math.round(lvl.into / lvl.need * 100)}%"></div></div>
-      <div class="row coins"><span>🪙 ${p.coins}</span><span class="muted">🎫 ${tier}/${SEASON.tiers}</span></div>`;
+      <div class="row coins"><span>🪙 ${p.coins}</span><span class="muted">🎫 ${tier}/${SEASON.tiers}</span></div>
+      ${p.event ? `<div class="ev-banner">🔥 ${esc(p.event.name)}: XP ×${p.event.xp} · Münzen ×${p.event.coins}<div class="muted" style="font-size:11px">bis ${new Date(p.event.until).toLocaleString('de-DE', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}</div></div>` : ''}`;
     this.el.querySelector('.lo').onclick = () => this.app.logout();
     const badge = (id, n) => { const b = this.el.querySelector(`[data-badge=${id}]`); if (b) { b.textContent = n || ''; b.style.display = n ? 'inline-block' : 'none'; } };
     badge('friends', p.requests.length);

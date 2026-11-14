@@ -189,7 +189,7 @@ export class Game {
     if (r.tag) r.tag = null;
     const myTeam = this.self?.team;
     const mate = MODES[this.modeId].teams && team === myTeam && team !== 'N';
-    if (info && mate) { r.tag = nameSprite(info.name); r.tag.position.y = 2.15; r.model.add(r.tag); }
+    if (info && mate) { r.tag = info.adm ? nameSprite('👑 ' + info.name, '#ffc83a') : nameSprite(info.name); r.tag.position.y = 2.15; r.model.add(r.tag); }
   }
   removeRemote(id) {
     const r = this.remotes.get(id);

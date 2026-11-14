@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { WEAPONS } from '../shared/weapons.js';
 import { levelInfo, rankFor, RANKED_MODES } from '../shared/progression.js';
 import { ensureChallenges } from './progress.js';
+import { isAdmin, ensureAdminItems } from './roles.js';
 
 export function api(hub) {
   const r = express.Router();
@@ -43,7 +44,7 @@ export function api(hub) {
       log('auth', `Fehlgeschlagener Login für ${String(name).slice(0, 20)} von ${ipOf(req)}`);
       return res.status(401).json({ error: 'Name oder Passwort falsch' });
     }
-    if (u.banned) return res.status(403).json({ error: `Dieser Account ist gesperrt${u.banReason ? ': ' + u.banReason : ''}.` });
+    if (db.isBanned(u)) return res.status(403).json({ error: `Dieser Account ist gesperrt${u.bannedUntil ? ' bis ' + new Date(u.bannedUntil).toLocaleString('de-DE', { timeZone: 'Europe/Berlin' }) : ''}${u.banReason ? ' – ' + u.banReason : ''}.` });
     res.json({ token: db.newSession(u.id) });
   });
 
@@ -52,7 +53,8 @@ export function api(hub) {
   r.get('/me', auth, (req, res) => {
     const u = req.user;
     ensureChallenges(u);
-    res.json(privateProfile(u, hub));
+    if (ensureAdminItems(u)) db.markDirty();
+    res.json({ ...privateProfile(u, hub), admin: isAdmin(u), event: db.getEvent(), notices: db.takeNotices(u) });
   });
 
   r.put('/settings', auth, (req, res) => {
@@ -212,7 +214,7 @@ export function publicProfile(u, hub) {
   const ranks = {};
   for (const m of RANKED_MODES) { const r = u.ratings[m]; ranks[m] = { rating: r?.r ?? 1000, games: r?.games ?? 0, rank: rankFor(r?.r ?? 1000, r?.games ?? 0) }; }
   return {
-    id: u.id, name: u.name, avatar: u.avatar, created: u.created, xp: u.xp, level: levelInfo(u.xp),
+    id: u.id, name: u.name, admin: isAdmin(u), avatar: u.avatar, created: u.created, xp: u.xp, level: levelInfo(u.xp),
     stats: u.stats, modeStats: u.modeStats, ranks, favorite: favWeapon(u.stats), loadout: u.loadout, history: u.history.slice(0, 15), ...hub.presence(u.id),
   };
 }

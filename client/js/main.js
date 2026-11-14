@@ -36,7 +36,11 @@ class App {
     this.menu.show('play');
   }
 
-  async refreshProfile() { this.profile = await api('/me'); return this.profile; }
+  async refreshProfile() {
+    this.profile = await api('/me');
+    for (const n of this.profile.notices || []) toast(n, [], 9000);
+    return this.profile;
+  }
 
   async logout() {
     try { await api('/logout', { method: 'POST' }); } catch {}
@@ -57,6 +61,7 @@ class App {
     n.on('presence', () => { if (!this.game && this.menu.page === 'friends') this.menu.show('friends'); });
     n.on('authFail', () => { setToken(null); this.net.close(); this.menu.showAuth(); });
     n.on('profileUpdate', (m) => { toast(`🎁 ${m.text}`); this.refreshProfile().then(() => { if (!this.game) this.menu.refreshChrome(); }).catch(() => {}); });
+    n.on('event', (m) => { toast(`🔥 ${m.event.name} gestartet: XP ×${m.event.xp}, Münzen ×${m.event.coins}!`, [], 9000); if (this.profile) { this.profile.event = m.event; if (!this.game) this.menu.refreshChrome(); } });
     n.on('kicked', (m) => { toast(m.reason); this.net.close(); });
     n.on('roomClosed', () => { if (this.game && !this.game.hud.ended) { toast('Der Server wurde geschlossen.'); this.game.dispose(); this.backToMenu(); } });
     n.on('close', () => { if (!this.game) document.title = 'KANTFIRE (verbinde neu …)'; });

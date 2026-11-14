@@ -274,7 +274,7 @@ export class Hud {
     const d = document.createElement('div');
     d.className = 'ln';
     if (m.sys) d.innerHTML = `<span style="color:#ffb02a">${esc(m.text)}</span>`;
-    else d.innerHTML = `${m.team ? '<span class="muted">[Team]</span> ' : ''}${m.alive === false ? '<span class="muted">*tot*</span> ' : ''}<b>${esc(m.from)}:</b> ${esc(m.text)}`;
+    else d.innerHTML = `${m.team ? '<span class="muted">[Team]</span> ' : ''}${m.alive === false ? '<span class="muted">*tot*</span> ' : ''}${m.adm ? `<b style="color:#ffc83a">👑 ${esc(m.from)}:</b>` : `<b>${esc(m.from)}:</b>`} ${esc(m.text)}`;
     this.$('.h-chat').append(d);
     this.chatLines.push({ el: d, t: performance.now() });
     if (this.chatLines.length > 8) this.chatLines.shift().el.remove();
@@ -312,7 +312,7 @@ export class Hud {
     const row = (p) => {
       const r = G.remotes.get(p.id);
       const alive = p.id === G.me ? G.self?.al : r?.vis ? r.vis.f & 1 : 1;
-      return `<tr class="t${p.team} ${alive ? '' : 'dead'} ${p.id === G.me ? 'me' : ''}"><td>${esc(p.name)}${p.bot ? ' <span class="tag">BOT</span>' : ''}${p.dc ? ' <span class="tag">getrennt</span>' : ''}${p.z ? ' 🧟' : ''}</td>
+      return `<tr class="t${p.team} ${alive ? '' : 'dead'} ${p.id === G.me ? 'me' : ''}"><td${p.adm ? ' style="color:#ffc83a"' : ''}>${p.adm ? '👑 ' : ''}${esc(p.name)}${p.bot ? ' <span class="tag">BOT</span>' : ''}${p.dc ? ' <span class="tag">getrennt</span>' : ''}${p.z ? ' 🧟' : ''}</td>
         ${G.modeId === 'gungame' ? `<td>${(p.gl ?? 0) + 1}</td>` : ''}<td>${p.k}</td><td>${p.d}</td><td>${p.a}</td><td>${p.k ? Math.round((p.hs / p.k) * 100) : 0}%</td><td>${p.sc}</td>${p.$ != null ? `<td>$${p.$}</td>` : '<td></td>'}<td>${p.bot ? '–' : p.ping + ' ms'}</td></tr>`;
     };
     const head = `<tr><th>Spieler</th>${G.modeId === 'gungame' ? '<th>Stufe</th>' : ''}<th>K</th><th>T</th><th>A</th><th>HS</th><th>Punkte</th><th></th><th>Ping</th></tr>`;

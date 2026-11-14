@@ -6,14 +6,9 @@ import { log, cleanText } from './security.js';
 import { ITEMS, ITEM_BY_ID, CRATES } from '../shared/cosmetics.js';
 import { levelInfo } from '../shared/progression.js';
 import { grantBattlepass } from './progress.js';
-import { CONFIG } from './config.js';
-
-const adminNames = () => new Set([
-  ...String(process.env.ADMIN_USERS || '').split(','),
-  ...(CONFIG.admins || []),
-].map((s) => String(s).trim().toLowerCase()).filter(Boolean));
-
-export const isAdmin = (u) => !!u && adminNames().has(u.name.toLowerCase());
+import { isAdmin } from './roles.js';
+import { validName } from './security.js';
+export { isAdmin };
 const clampInt = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.trunc(Number(v) || 0)));
 
 export function adminApi(hub) {
@@ -28,7 +23,7 @@ export function adminApi(hub) {
 
   const summary = (u) => ({
     id: u.id, name: u.name, coins: u.coins, xp: u.xp, level: levelInfo(u.xp).level, crates: u.crates, bpXp: u.bp.xp,
-    items: u.inventory.length, itemsTotal: ITEMS.length, banned: !!u.banned, banReason: u.banReason || '', created: u.created,
+    items: u.inventory.length, itemsTotal: ITEMS.length, banned: db.isBanned(u), banReason: u.banReason || '', bannedUntil: u.bannedUntil || 0, created: u.created,
     matches: u.stats.matches, kills: u.stats.kills, ...hub.presence(u.id),
   });
   const target = (req, res) => {
@@ -81,16 +76,77 @@ export function adminApi(hub) {
     const u = target(req, res); if (!u) return;
     if (u.id === req.admin.id) return res.status(400).json({ error: 'Du kannst dich nicht selbst sperren' });
     const ban = !!req.body?.ban;
+    const hours = clampInt(req.body?.hours, 0, 24 * 365);
     u.banned = ban;
+    u.bannedUntil = ban && hours ? Date.now() + hours * 3600_000 : 0;
     u.banReason = ban ? cleanText(req.body?.reason || 'Regelverstoß', 120) : '';
     if (ban) {
       db.dropUserSessions(u.id);
       const c = hub.byUser.get(u.id);
-      if (c) { if (c.room && c.player) c.room.disconnect(c.player); c.send({ t: 'kicked', reason: `Dein Account wurde gesperrt: ${u.banReason}` }); c.ws.close(); }
+      if (c) { if (c.room && c.player) c.room.disconnect(c.player); c.send({ t: 'kicked', reason: `Dein Account wurde ${hours ? `für ${hours} h ` : ''}gesperrt: ${u.banReason}` }); c.ws.close(); }
     }
     db.markDirty();
-    log('admin', `${req.admin.name} ${ban ? 'sperrt' : 'entsperrt'} ${u.name}${ban ? ': ' + u.banReason : ''}`);
+    log('admin', `${req.admin.name} ${ban ? 'sperrt' : 'entsperrt'} ${u.name}${ban ? ` (${hours ? hours + ' h' : 'dauerhaft'}): ` + u.banReason : ''}`);
     res.json({ user: summary(u) });
+  });
+
+  r.post('/rename', (req, res) => {
+    const u = target(req, res); if (!u) return;
+    const nn = String(req.body?.newName || '');
+    if (!validName(nn)) return res.status(400).json({ error: 'Name: 3–16 Zeichen, nur Buchstaben, Zahlen, _ und -' });
+    const other = db.getUserByName(nn);
+    if (other && other.id !== u.id) return res.status(409).json({ error: 'Name ist bereits vergeben' });
+    const old = u.name;
+    db.renameUser(u, nn);
+    db.addNotice(u, `Dein Name wurde von einem Admin zu „${nn}“ geändert.`);
+    res.json({ user: done(req, u, `umbenannt (vorher ${old})`) });
+  });
+
+  r.post('/resetAccount', (req, res) => {
+    const u = target(req, res); if (!u) return;
+    if (req.body?.confirm !== u.name) return res.status(400).json({ error: 'Zur Bestätigung den Accountnamen exakt eingeben' });
+    db.resetUser(u);
+    res.json({ user: done(req, u, 'Fortschritt komplett zurückgesetzt') });
+  });
+
+  // Doppel-XP/-Münzen für alle (z. B. Wochenende)
+  r.get('/event', (req, res) => res.json({ event: db.getEvent() }));
+  r.post('/event', (req, res) => {
+    const hours = clampInt(req.body?.hours, 0, 24 * 14);
+    if (!hours) { db.setEvent(null); log('admin', `${req.admin.name} beendet Event`); return res.json({ event: null }); }
+    const xp = [1, 1.5, 2, 3].includes(+req.body?.xp) ? +req.body.xp : 2;
+    const coins = [1, 1.5, 2, 3].includes(+req.body?.coins) ? +req.body.coins : 2;
+    const ev = { xp, coins, until: Date.now() + hours * 3600_000, name: cleanText(req.body?.name || 'Bonus-Event', 40) };
+    db.setEvent(ev);
+    for (const c of hub.allConns()) if (c.user) c.send({ t: 'event', event: ev });
+    log('admin', `${req.admin.name} startet Event ${ev.name}: XP ×${xp}, Münzen ×${coins}, ${hours} h`);
+    res.json({ event: ev });
+  });
+
+  // Geschenk an alle Accounts (auch offline – sie sehen beim nächsten Login eine Nachricht)
+  r.post('/giftAll', (req, res) => {
+    const b = req.body || {};
+    const coins = clampInt(b.coins, 0, 1_000_000);
+    const crate = CRATES[b.crate] ? b.crate : null, crateN = crate ? clampInt(b.crateN || 1, 1, 100) : 0;
+    const item = ITEM_BY_ID[b.item] ? b.item : null;
+    if (!coins && !crate && !item) return res.status(400).json({ error: 'Nichts ausgewählt' });
+    const parts = [];
+    if (coins) parts.push(`${coins} Münzen`);
+    if (crate) parts.push(`${crateN}× ${CRATES[crate].name}`);
+    if (item) parts.push(ITEM_BY_ID[item].name);
+    const text = `Geschenk vom Team: ${parts.join(', ')}${b.message ? ' – ' + cleanText(b.message, 100) : ''}`;
+    let n = 0;
+    for (const u of db.allUsers()) {
+      if (coins) u.coins += coins;
+      if (crate) u.crates[crate] = (u.crates[crate] || 0) + crateN;
+      if (item && !u.inventory.includes(item)) u.inventory.push(item);
+      if (hub.isOnline(u.id)) hub.notify(u.id, { t: 'profileUpdate', text });
+      else db.addNotice(u, text);
+      n++;
+    }
+    db.markDirty();
+    log('admin', `${req.admin.name} beschenkt ${n} Accounts: ${parts.join(', ')}`);
+    res.json({ ok: true, count: n });
   });
 
   r.post('/kick', (req, res) => {

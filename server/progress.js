@@ -37,12 +37,15 @@ export function commitMatch(room, single, { left = false, result = null } = {}) 
     xp += s.kills * 15 + s.hs * 5 + s.assists * 5 + s.plants * 20 + s.defuses * 25 + s.infections * 10;
     if (won) xp += 150; else if (draw) xp += 75;
     xp = Math.min(xp, 1500);
+    const ev = db.getEvent();
+    if (ev) xp = Math.round(xp * (ev.xp || 1));
     const before = levelInfo(u.xp).level;
     u.xp += xp;
     let coins = Math.floor(xp / 8);
     // Herausforderungen
     const done = progressChallenges(u, { kills: s.kills, hs: s.hs, wins: won ? 1 : 0, matches: left ? 0 : 1, sniperKills: s.sniperKills, plants: s.plants + s.defuses, infections: s.infections });
     for (const c of done) { u.xp += c.xp; coins += c.coins; }
+    if (ev) coins = Math.round(coins * (ev.coins || 1));
     u.coins += coins;
     const after = levelInfo(u.xp).level;
     const unlocked = [];

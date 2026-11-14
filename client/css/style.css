@@ -326,3 +326,5 @@ button.ghost:hover { background: #ffffff10; }
 .adm-msg { min-height: 18px; font-size: 13px; }
 .adm-msg.ok { color: #4cd964; } .adm-msg.err { color: #ff5a5a; }
 .adm button.danger { background: #8a1f25; }
+.adm-name { color: #ffc83a; text-shadow: 0 0 8px #ffb02a66; }
+.ev-banner { margin-top: 8px; background: linear-gradient(90deg, #ff6a2a33, #ffb02a22); border: 1px solid #ff6a2a66; border-radius: 8px; padding: 6px 8px; font-size: 13px; font-weight: 600; }

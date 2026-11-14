@@ -11,6 +11,7 @@ import { Bot } from './bot.js';
 import { Nav } from './nav.js';
 import { log } from './security.js';
 import { commitMatch } from './progress.js';
+import { isAdmin } from './roles.js';
 import { modeConfig, CONFIG } from './config.js';
 
 const BOT_NAMES = ['Kantig', 'Blocki', 'Quader', 'Pixel', 'Würfel', 'Ziegel', 'Bolzen', 'Funke', 'Schotter', 'Nebel', 'Raster', 'Splitter', 'Kiesel', 'Sturm', 'Kobalt', 'Granit'];
@@ -87,6 +88,7 @@ export class Room {
     }
     p = new Player(this.nextId++, { user, name: user.name, conn });
     p.level = user.levelCache || 1;
+    p.admin = isAdmin(user);
     p.rating = user.ratings?.[this.modeId]?.r ?? 1000;
     this.players.set(p.id, p);
     p.team = this.mode.chooseTeam(p);
@@ -252,7 +254,7 @@ export class Room {
     if (!force && !this.rosterDirty && this.tickNo % (TICK_RATE * 2) !== 0) return;
     this.rosterDirty = false;
     const list = [...this.players.values()].map((p) => ({
-      id: p.id, name: p.name, team: p.team, bot: !!p.bot, lo: p.loadout, lvl: p.level, uid: p.userId,
+      id: p.id, name: p.name, team: p.team, bot: !!p.bot, lo: p.loadout, lvl: p.level, uid: p.userId, adm: !!p.admin,
       k: p.stats.kills, d: p.stats.deaths, a: p.stats.assists, sc: p.stats.score, hs: p.stats.hs, mvp: p.stats.mvps,
       ping: p.conn?.ping ?? 0, dc: !!p.disconnectedAt, gl: p.gunLevel, z: p.zombie,
     }));
@@ -405,7 +407,7 @@ export class Room {
     p.chatTimes = p.chatTimes.filter((t) => now - t < 5000);
     if (p.chatTimes.length >= 5) return this.toast(p, 'Zu viele Nachrichten.');
     p.chatTimes.push(now);
-    const msg = { t: 'chat', from: p.name, uid: p.userId, team: team ? p.team : null, alive: p.alive, text };
+    const msg = { t: 'chat', from: p.name, adm: !!p.admin, uid: p.userId, team: team ? p.team : null, alive: p.alive, text };
     for (const q of this.players.values()) {
       if (!q.conn) continue;
       if (team && q.team !== p.team) continue;
